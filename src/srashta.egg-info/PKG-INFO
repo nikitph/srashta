@@ -1,6 +1,0 @@
-Metadata-Version: 2.4
-Name: srashta
-Version: 0.1.2
-Summary: Spec to agent-ready tickets. The CLI does bookkeeping and enforcement; your agent does judgment.
-Requires-Python: >=3.10
-Requires-Dist: pyyaml>=6

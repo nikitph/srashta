@@ -2,8 +2,16 @@
 name = "srashta"
 version = "0.1.2"
 description = "Spec to agent-ready tickets. The CLI does bookkeeping and enforcement; your agent does judgment."
+readme = "README.md"
+license = {file = "LICENSE"}
 requires-python = ">=3.10"
 dependencies = ["pyyaml>=6"]
+
+[project.urls]
+Homepage = "https://nikitph.github.io/srashta/"
+Repository = "https://github.com/nikitph/srashta"
+Documentation = "https://github.com/nikitph/srashta/blob/main/GUIDE.md"
+Issues = "https://github.com/nikitph/srashta/issues"
 
 [project.scripts]
 srashta = "srashta.cli:main"

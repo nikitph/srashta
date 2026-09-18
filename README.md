@@ -1,108 +1,147 @@
-# srashta 0.1.2
+<p align="center">
+  <img src="docs/assets/cover.svg" alt="Srashta — turn a spec into work you can reason about. Specification → ticket graph → your executor." width="100%">
+</p>
 
-A Python CLI for **idea → specification → approved contracts → bounded tickets → verified implementation → frozen API**.
+<p align="center">
+  <a href="https://github.com/nikitph/srashta/actions/workflows/tests.yml"><img src="https://github.com/nikitph/srashta/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-315b66?style=flat" alt="Python 3.10 or newer">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-315b66?style=flat" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/status-early%20preview-c5633b?style=flat" alt="Early preview">
+</p>
 
-The CLI parses, derives, validates and records evidence. Your planning agent and you make product decisions. Your external orchestrator claims work, launches isolated workers, reviews and merges it. Srashta never invokes a model.
+<p align="center">
+  <a href="https://nikitph.github.io/srashta/">Explore the graph ↗</a> ·
+  <a href="#get-started">Get started</a> ·
+  <a href="GUIDE.md">Operating guide</a> ·
+  <a href="examples/notes_demo.py">Working example</a>
+</p>
 
-## Install this release
+Srashta turns specification-driven planning into an **explicit ticket graph**: requirements, shared contracts, dependencies, file ownership and acceptance criteria that a developer can inspect and an agent can work from.
 
-Python 3.10+ on macOS/Linux. From this source directory:
+The aim is practical: produce a better starting plan and reduce the effort spent correcting implementation. A graph can be useful long before its decomposition is perfect.
 
-```bash
-python -m pip install .
-srashta --version
+**Your planning agent authors the decomposition. Srashta checks its structure, derives execution waves and packages the work.** The Python CLI never calls a model. Execution stays with your chosen orchestrator.
+
+## The useful part is the graph
+
+A specification leaves many implementation decisions implicit. Which contract must be agreed first? Can these two tickets run together? Who owns the schema? What does each worker need to know? What would prove the feature is done?
+
+Srashta gives those decisions a durable home, before they become scattered across code and conversations.
+
+```mermaid
+flowchart LR
+    S[Specification] --> P[Agent + developer planning]
+    P --> C[Approved contracts]
+    C --> G[Authored ticket graph]
+    G --> V[Validate + derive waves]
+    V --> B[Bounded worker briefs]
+    B --> E[Your executor]
+    E --> F[Evidence + feedback]
+    F -. refine .-> P
 ```
 
-Or install the supplied wheel with `pipx install /path/to/srashta-0.1.2-py3-none-any.whl`.
-This local release has not been published to PyPI.
+| In the graph | Why it matters |
+| --- | --- |
+| **Requirement ownership** | Trace work back to the behavior it is meant to deliver. |
+| **Contract tickets** | Agree shared interfaces and structures before features depend on them. |
+| **Dependency edges** | Make prerequisite work and execution order visible. |
+| **File ownership** | Detect conflicting scopes before workers edit the same paths. |
+| **Acceptance criteria** | Give each ticket a concrete definition of done. |
+| **Open questions** | Keep unresolved decisions visible and propagate blockers. |
+| **Focused context packs** | Give a worker its brief, relevant requirements and approved contract excerpts. |
 
-## Start a project
+Spec formats and planning guides can feed this layer. Worker systems can consume its output. The graph is the boundary between the two.
+
+## Get started
+
+Python **3.10+**, Git, macOS or Linux. Install from source; Srashta is not published on PyPI.
 
 ```bash
-srashta init my-api --run-scaffold
-cd my-api
+git clone https://github.com/nikitph/srashta.git
+cd srashta
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+
+# Create a planning workspace; no PHP needed for this step.
+srashta init ../my-api --stack none
+cd ../my-api
 srashta status
 ```
 
-Scaffolding requires Git, PHP 8.3+, and Composer. It creates the Laravel React starter, installs API routing, Scramble and Pest, and then adds planning files. The API workflow does not require a frontend build. Without `--run-scaffold`, init creates a planning repository only. Existing nonempty destinations are rejected. Init leaves the first commit to you.
+Edit `project.yaml`, write the specification, and follow the generated `PROCEDURE.md`. Project guides are exposed through `.agents/skills/` and `.claude/skills/`.
 
-Configure `project.yaml`, author the specification, and follow `PROCEDURE.md`. Planning guides have discoverable entrypoints under `.claude/skills/<name>/SKILL.md` and `.agents/skills/<name>/SKILL.md`; both reference the same editable project guide.
+For a Laravel application, use `srashta init ../my-api --run-scaffold` instead. Scaffolding additionally needs PHP 8.3+ and Composer. The destination must be new or empty.
 
-## The working loop
+## From a plan to a handoff
+
+Once the specification and project configuration are ready:
 
 ```bash
-srashta run                         # extract, lint, module analysis, assignment
-# Planning agent writes contracts/phase-0.md; human reviews it.
+srashta run                       # Extract, lint, analyze and assign requirements
+
+# Your planning agent writes contracts/phase-0.md. You review it.
 srashta approve 0 --by YOUR_NAME
-# Planning agent writes tickets/phase-0.json.
-srashta waves 0
-srashta validate 0
-srashta packs 0
-srashta export 0
-# Commit the approved plan and generated graph before starting execution.
-srashta eligible 0 --json
-srashta worker 0 C-01 --dest /path/to/new-worker-input
+
+# Your planning agent writes tickets/phase-0.json.
+srashta waves 0                    # Derive ordering from dependencies
+srashta validate 0                 # Check the graph and approved inputs
+srashta packs 0                    # Render one focused brief per ticket
+srashta export 0                   # Produce the handoff bundle
 ```
 
-The worker input contains one brief and selected committed application files, without the PRD, other briefs, events or Git history. The orchestrator must launch that input inside its own filesystem sandbox. A copied directory or Git worktree alone is not isolation. Workers return patches and test/brief feedback; the orchestrator records events in the authoritative repository.
+Authored tickets live in **`tickets/`**. Derived graphs and handoffs live in **`build/`**. Deleting generated files does not delete the decomposition.
 
-After integrating a ticket's commits into the local checkout:
+Commit the approved plan before execution. Your orchestrator handles claims, worker launches, sandboxing, review and merges. Srashta supplies eligible-ticket queries, worker inputs, verification and evidence records. Generic and Markdown Kanban exports are available; dedicated Multica or Symphony adapters are not included.
 
-```bash
-srashta verify 0 C-01 --base BASE_COMMIT
-srashta event C-01 brief_feedback --phase 0 --data '{"sufficient":true}'
-srashta event C-01 merged --phase 0 --data '{"head":"VERIFIED_COMMIT","reviewed_by":"REVIEWER"}'
-```
+[Read the complete execution, closure and API-freeze workflow →](GUIDE.md)
 
-`verify` reads ownership and test commands from the base commit, checks every changed path and commit message, and runs the configured verification commands on committed code. Contract and integration merges require a recorded reviewer. The event is a local execution record; remote PR approval/merge authority remains with your orchestrator and repository protections. Squash/rebase merges need verification of the resulting commit, since the original SHA no longer proves the merged result.
+## What is implemented today
 
-After every ticket has verified merge evidence and brief feedback, write the retrospective:
+- Requirement extraction, linting, module analysis and assignment.
+- Authored ticket graphs, dependency waves and shared-resource ordering.
+- Structural checks for ownership, contract references, blockers and artifact drift.
+- Content-bound design approvals, focused briefs and export manifests.
+- Ticket verification against a trusted Git base, execution events and phase closure.
+- Laravel scaffolding, generated OpenAPI and API-freeze checks.
 
-```bash
-srashta close 0 --by YOUR_NAME
-srashta api generate
-# Commit generated output before subsequent verification/closure commands.
-# Once every backend phase is closed:
-srashta api freeze --by YOUR_NAME
-srashta api check --base TRUSTED_BASE_COMMIT
-```
+The decomposition itself is authored by a person or a planning agent using the supplied guides. **Reliable semantic spec → graph generation has not yet been benchmarked.** Structural validity cannot prove that a plan is a good interpretation of the product.
 
-## Sources and generated files
+## A real, reproducible example
 
-| Durable source/evidence | Regenerated views |
-|---|---|
-| `spec/`, `project.yaml`, `constitution.md`, `config/defaults.yaml` | `build/requirements*.json`, module analysis |
-| `contracts/phase-N.md` and content-bound `.approved` receipt | `build/tickets/phase-N.json` |
-| **`tickets/phase-N.json` — authored decomposition** | `build/context-packs/phase-N/`, `build/handoff/phase-N/` |
-| `events/`, `evidence/`, `retrospectives/` | `docs/openapi.yaml` before freeze |
-
-Deleting `build/` must not delete planning judgment or execution evidence. Rebuild with extract, assign, waves, packs, export. A contract excerpt in a ticket must exactly match text in the approved design. Updating the design invalidates its approval. Editing a derived graph or brief makes validation/export fail.
-
-OpenAPI is generated from Laravel routes with Scramble. Tickets cannot own the generated contract. The installed CI workflow uses the validator from the PR base, checks ticket changes and API freeze, and uploads generated API/evidence artifacts. It has read-only repository permissions and does not push commits or post comments. The operator/orchestrator publishes reviewed generated output. Enable required checks and human review on the hosting service; init cannot configure those without a remote repository.
-
-## Migration from 0.1.0 / 0.1.1
-
-Install this version and run `srashta upgrade`. It preserves legacy `build/tickets/phase-N.json` under `tickets/`, retaining dependency edges and inherited blockers for review. Review those sources, refresh project guides, and regenerate outputs. Old empty approval markers require a real re-review with `srashta approve`. Upgrade does not invent missing verification evidence, apply new CI automatically, or certify an old phase as complete. After each clone, run `srashta bootstrap` to enable hooks.
-
-## Other commands
-
-- `gentests`: generate every permitted and forbidden state transition, including self-transitions. Bind the generated test adapter to your action implementation before running it.
-- `trace ID`: follow requirement and ticket references.
-- `skills --full`: inspect guide differences. `--sync` preserves local edits unless explicitly forced; `--promote` publishes a reviewable PR when you explicitly invoke it and configure a blueprint repo.
-- `event --id KEY`: idempotent append; concurrent writes use a process lock. Event logs are Git-tracked history, not tamper-proof storage.
-
-Glob ownership supports relative POSIX paths with `*`, `?`, `**` and `**/`. Unsupported bracket classes and path traversal are rejected. Overlap and containment are checked as pattern languages, not by matching one glob string against another.
-
-## Verification and scope
+The [Notes API walkthrough](examples/notes_demo.py) builds a Laravel application and exercises the lifecycle through a frozen OpenAPI contract:
 
 ```bash
-python -m pip install -e . pytest jsonschema
+python -m pip install pytest jsonschema
 python -m pytest -q
+
+# Requires PHP 8.3+, Composer and Git; creates a new directory.
 python examples/notes_demo.py /absolute/path/to/new-notes-demo
 ```
 
-The example creates a real Laravel Notes API, executes Pest tests, records verified commits and fixture approvals, closes its phase and freezes generated OpenAPI. It is a scripted acceptance test, not a measurement of autonomous agent quality.
+The local 0.1.2 verification recorded **142 Python tests passing** on Python 3.10 and 3.14, plus **five Laravel tests with 18 assertions**. The example checks create/read behavior, validation failures, persistence and generated API response types. An added route was also rejected after API freeze.
 
-This release ends at backend/API freeze. Brand/design-system guides remain available as future-stage guidance; surface implementation, MCP generation, a hosted scheduler, deployment, OS sandboxing and model execution are outside this release. Semantic requirements quality and whether tests adequately capture intent still need review. The 10× brief-size target is advisory for small specifications, where fixed instructions dominate.
+The example's implementation and approval identities are scripted fixtures. These checks demonstrate the workflow and enforcement; they are not a benchmark of autonomous planning or implementation. The local PHP 8.5 run emitted framework deprecation notices; the scaffolded CI targets PHP 8.3.
 
-For provisional runtime settings, declare `config_key` on an unresolved blocker and run `srashta defaults` after editing `config/defaults.yaml`. Laravel application code reads through `App\Support\ProvisionalConfig::read('key')`. A blocked key raises unless the caller explicitly acknowledges it **and** the application is in `local` or `testing`. Production always raises. Direct raw-config access bypasses this application boundary and must be rejected in review. Recompile and commit the generated config when an answer changes.
+## Where this is going
+
+The next question is how much a reviewed graph improves a real build: fewer missing dependencies, fewer context gaps, less integration repair and less total correction effort. Useful next work includes stronger decomposition guides, representative planning examples and thin adapters to existing executors.
+
+Version 0.1 ends at backend/API freeze. A hosted scheduler, OS sandboxing, frontend delivery, MCP generation and deployment are outside the current release.
+
+## Explore the project
+
+| Resource | What you will find |
+| --- | --- |
+| [Interactive walkthrough](https://nikitph.github.io/srashta/) | An illustrative graph and the brief behind each ticket |
+| [Operating guide](GUIDE.md) | Commands, source-of-truth rules, execution and migration |
+| [Decomposition guide](src/srashta/templates/skills/phase-decomposition.md) | The planning process supplied to your agent |
+| [Ticket schema](src/srashta/templates/schemas/ticket.schema.json) | The structured handoff contract |
+| [Changelog](CHANGELOG.md) | Release changes |
+| [Contributing](CONTRIBUTING.md) | Development setup and useful failure reports |
+
+---
+
+**स्रष्टा · Srashta** — the one who brings into existence.
+
+[MIT License](LICENSE) · Built by [Nikit Phadke](https://github.com/nikitph).

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="500" viewBox="0 0 1280 500" role="img" aria-labelledby="title desc">
+<title id="title">Srashta — turn a spec into work you can reason about.</title>
+<desc id="desc">An explicit ticket graph connects a specification to your executor.</desc>
+<defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#203c45" stroke-opacity=".08"/></pattern></defs>
+<rect width="1280" height="500" rx="12" fill="#f4f2eb"/><rect width="1280" height="500" fill="url(#grid)"/>
+<g fill="none" stroke="#bd5733" stroke-width="2"><path d="M64 66h28m-28 12h28m-28 12h28M78 52v52"/><circle cx="64" cy="66" r="4" fill="#f4f2eb"/><circle cx="92" cy="90" r="4" fill="#f4f2eb"/></g>
+<text x="110" y="89" fill="#183d43" font-family="Arial,sans-serif" font-size="34" font-weight="700" letter-spacing="-1">srashta</text>
+<text x="64" y="195" fill="#193b42" font-family="Georgia,serif" font-size="64">Turn a spec into work</text>
+<text x="64" y="269" fill="#193b42" font-family="Georgia,serif" font-size="64">you can reason about.</text>
+<text x="66" y="327" fill="#667578" font-family="Arial,sans-serif" font-size="21">Explicit dependencies. Bounded scope. Your executor.</text>
+<g font-family="monospace" font-size="15"><text x="65" y="431" fill="#193b42">SPECIFICATION</text><path d="M210 426h65m-7-5 7 5-7 5" fill="none" stroke="#bd5733" stroke-width="2"/><text x="298" y="431" fill="#193b42">TICKET GRAPH</text><path d="M426 426h65m-7-5 7 5-7 5" fill="none" stroke="#bd5733" stroke-width="2"/><text x="515" y="431" fill="#193b42">YOUR EXECUTOR</text></g>
+<g stroke="#95a6a3" stroke-width="2" fill="none"><path d="M1012 146v48h-101v42m101-42h101v42M911 298v50h101v36m101-86v50h-101"/></g>
+<g font-family="monospace" font-size="16" text-anchor="middle"><rect x="943" y="89" width="138" height="62" rx="7" fill="#193b42"/><text x="1012" y="126" fill="#fff">C-01</text><rect x="844" y="236" width="134" height="62" rx="7" fill="#e6ede6" stroke="#adbbb1"/><text x="911" y="273" fill="#193b42">T-01</text><rect x="1046" y="236" width="134" height="62" rx="7" fill="#e6ede6" stroke="#adbbb1"/><text x="1113" y="273" fill="#193b42">T-02</text><rect x="943" y="384" width="138" height="62" rx="7" fill="#bd5733"/><text x="1012" y="421" fill="#fff">I-01</text></g>
+</svg>
