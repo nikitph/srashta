@@ -1,8 +1,16 @@
 import os, json, subprocess
+import pytest
 from types import SimpleNamespace
 from srashta import skills
 
 SK = '.claude/skills'
+
+@pytest.fixture(autouse=True)
+def isolated_git_identity(monkeypatch):
+    """Promotion commits in a fresh clone must not use the developer's identity."""
+    for role in ('AUTHOR', 'COMMITTER'):
+        monkeypatch.setenv(f'GIT_{role}_NAME', 'Srashta test fixture')
+        monkeypatch.setenv(f'GIT_{role}_EMAIL', 'fixture@example.invalid')
 
 def args(**kw):
     return SimpleNamespace(full=kw.get('full', False), sync=kw.get('sync', False),
@@ -62,13 +70,13 @@ def test_promote_with_nothing_changed_is_a_noop(project, capsys):
     assert skills.main(args(promote=[]), cfg={'blueprint_repo': '/nope'}) == 0
     assert 'nothing to promote' in capsys.readouterr().out
 
-def _fake_gh(tmp_path):
+def _fake_gh(tmp_path, monkeypatch):
     d = tmp_path / 'bin'; d.mkdir(exist_ok=True)
     gh = d / 'gh'
     gh.write_text('#!/bin/sh\necho "$@" > %s/gh-args.txt\n'
                   'echo https://example.test/pull/1\n' % tmp_path)
     gh.chmod(0o755)
-    os.environ['PATH'] = f"{d}:{os.environ['PATH']}"
+    monkeypatch.setenv('PATH', f"{d}:{os.environ['PATH']}")
     return tmp_path / 'gh-args.txt'
 
 def _blueprint_repo(tmp_path):
@@ -87,9 +95,9 @@ def _blueprint_repo(tmp_path):
                     'refs/heads/main'], check=True)
     return origin
 
-def test_promote_opens_a_pr_carrying_the_diff(project, tmp_path, capsys):
+def test_promote_opens_a_pr_carrying_the_diff(project, tmp_path, capsys, monkeypatch):
     seed(); edit()
-    argsfile = _fake_gh(tmp_path)
+    argsfile = _fake_gh(tmp_path, monkeypatch)
     origin = _blueprint_repo(tmp_path)
     rc = skills.main(args(promote=[]), cfg={'project': 'mini', 'blueprint_repo': str(origin)})
     assert rc == 0
@@ -100,18 +108,18 @@ def test_promote_opens_a_pr_carrying_the_diff(project, tmp_path, capsys):
     assert 'HOUSE RULE: cap requirements at 300.' in body      # the diff is in the PR
     assert 'no retrospective' in out                           # and the rationale nudge
 
-def test_promote_cites_the_retrospective_when_one_exists(project, tmp_path, capsys):
+def test_promote_cites_the_retrospective_when_one_exists(project, tmp_path, capsys, monkeypatch):
     seed(); edit()
     os.makedirs('retrospectives', exist_ok=True)
     open('retrospectives/phase-0.md', 'w').write('ceiling is 6')
-    argsfile = _fake_gh(tmp_path)
+    argsfile = _fake_gh(tmp_path, monkeypatch)
     origin = _blueprint_repo(tmp_path)
     skills.main(args(promote=[]), cfg={'project': 'mini', 'blueprint_repo': str(origin)})
     assert 'retrospectives/phase-0.md' in argsfile.read_text()
 
-def test_promote_rejects_a_repo_that_is_not_the_blueprint(project, tmp_path, capsys):
+def test_promote_rejects_a_repo_that_is_not_the_blueprint(project, tmp_path, capsys, monkeypatch):
     seed(); edit()
-    _fake_gh(tmp_path)
+    _fake_gh(tmp_path, monkeypatch)
     bare = tmp_path / 'wrong'
     subprocess.run(['git', 'init', '-q', '--bare', str(bare)], check=True)
     assert skills.main(args(promote=[]), cfg={'blueprint_repo': str(bare)}) == 1
