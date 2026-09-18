@@ -412,7 +412,7 @@ def main(cfg, phase, quiet=False):
         # Decision-shaped for the one-command runner. Full detail lives in build/run.log.
         if not E:
             print(f"  ✓ {'Validate ticket graph':<28} {len(tickets)} tickets, "
-                  f"{len(by_wave)} waves, {len(runnable)} runnable now")
+                  f"{len(by_wave)} waves, {len(runnable)} unblocked in graph")
             for w in sorted(W)[:3]: print(f"  note: {w}")
             return 0
         print(f"  ✗ {'Validate ticket graph':<28} {len(E)} defect(s)")
@@ -424,7 +424,7 @@ def main(cfg, phase, quiet=False):
     print(f"  tickets               : {len(tickets)} across {len(by_wave)} waves")
     print(f"  contract tickets      : {sum(1 for t in tickets if t['kind']=='contract')}")
     print(f"  acceptance tests      : {sum(len(t['acceptance_tests']) for t in tickets)}")
-    print(f"  runnable now          : {len(runnable)}")
+    print(f"  unblocked in graph    : {len(runnable)}")
     print(f"  blocked on an open Q  : {len(blocked)}" + (f" -> {blocked}" if blocked else ""))
     if drift: print(f"  waves corrected by the graph : {len(drift)} of {len(tickets)}")
     print()
