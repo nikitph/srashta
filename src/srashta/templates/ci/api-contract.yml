@@ -1,0 +1,49 @@
+# .github/workflows/api-contract.yml — copy into place, or adapt for your CI.
+#
+# The contract is a BUILD OUTPUT, not a source file. Nobody hand-edits it and no
+# ticket owns it. On a PR it is generated and diffed so a reviewer sees exactly what
+# the API gained or changed. On merge it is committed by CI, which is what makes
+# `gate_artifacts: [docs/openapi.yaml]` a real gate.
+name: API contract
+on:
+  pull_request:
+  push: {branches: [main]}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with: {php-version: '8.3'}
+      - run: composer install --no-interaction --prefer-dist
+      - run: cp .env.example .env && php artisan key:generate
+
+      - name: Generate and diff
+        id: gen
+        run: ./ci/openapi.sh | tee /tmp/contract.txt
+
+      - name: Comment the API diff on the pull request
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('/tmp/contract.txt', 'utf8');
+            if (body.includes('unchanged')) return;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner, repo: context.repo.repo,
+              body: '### API contract diff\n\n```diff\n' + body + '\n```\n\n' +
+                    'A response shape changing here that the ticket did not set out to ' +
+                    'change is the thing to look for.'
+            });
+
+      - name: Commit on merge
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name  "api-contract[bot]"
+          git config user.email "api-contract@users.noreply.github.com"
+          git add docs/openapi.yaml
+          git diff --staged --quiet || git commit -m "chore: regenerate API contract"
+          git push

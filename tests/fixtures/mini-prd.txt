@@ -1,0 +1,50 @@
+MINI PRD
+Version 0.1
+
+Requirement conventions: FR-DOMAIN-NNN and NFR-NNN. Identifiers are permanent.
+
+9 Accounts
+ID Requirement Pri
+FR-ACC-001 A visitor must be able to create an account with an email address and a
+password.
+WHEN a visitor submits valid registration data
+THE SYSTEM SHALL create an account.
+P0
+FR-ACC-002 An email address must be verified by a single-use, time-limited link before
+the account may transact.
+IF a verification link is used twice
+THEN THE SYSTEM SHALL reject it.
+P0
+FR-ACC-003 A person must be able to reset a forgotten password. Completing a reset must
+invalidate all existing sessions.
+P0
+FR-ACC-004 Sessions must expire after a defined period of inactivity.
+P1
+
+10 Billing
+ID Requirement Pri
+FR-BIL-001 Checkout must create an Order with immutable line items before payment is
+attempted.
+P0
+FR-BIL-002 On successful payment the platform must, in one atomic outcome: create the
+subscription, write the ledger entries, and send the receipt.
+P0
+FR-BIL-003 Refunds must reverse the ledger entries that the original payment wrote.
+P0
+FR-BIL-004 A buyer must see their purchase history with receipts. This should be easy
+and user-friendly.
+P1
+
+11 Notifications
+ID Requirement Pri
+FR-NOT-001 All notifications must be issued through a single notification service.
+P0
+FR-NOT-002 Every notification must be recorded per recipient with its delivery state.
+P0
+
+27 Non-functional
+ID Requirement Pri
+NFR-001 All traffic must use current transport encryption.
+P0
+NFR-002 Pages must render within 2.5 seconds at the 75th percentile.
+P0

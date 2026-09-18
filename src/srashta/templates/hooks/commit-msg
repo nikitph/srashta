@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Every commit on a ticket branch names its ticket.
+#
+# `srashta trace` finds commits with `git log --grep=<ticket-id>`. A commit message that
+# omits the id does not error - the walk simply returns nothing, and that link is lost
+# silently and permanently. A convention nothing enforces is not a convention.
+#
+# Install: cp hooks/commit-msg .git/hooks/ && chmod +x .git/hooks/commit-msg
+MSG_FILE="$1"
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+TICKET=$(printf '%s' "$BRANCH" | grep -oE '^[CTI]-[0-9]{2,3}[a-z]?')
+
+[ -z "$TICKET" ] && exit 0            # not a ticket branch; nothing to enforce
+
+grep -qE "\b$TICKET\b" "$MSG_FILE" && exit 0
+
+# Prepend rather than reject: a correct commit should never be lost to a hook.
+printf '%s: %s' "$TICKET" "$(cat "$MSG_FILE")" > "$MSG_FILE.tmp"
+mv "$MSG_FILE.tmp" "$MSG_FILE"
+echo "  commit-msg: prefixed with $TICKET so srashta trace can find this commit"
+exit 0

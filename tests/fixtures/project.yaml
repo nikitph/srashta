@@ -1,0 +1,50 @@
+srashta_version: 0.1.0
+project: mini
+out_dir: build
+constitution: constitution.md
+defaults: config/defaults.yaml
+spec:
+  path: spec/mini-prd.txt
+  id_pattern: 'FR-[A-Z]{2,6}-\d{3}|NFR-\d{3}'
+  priority_pattern: 'P0|P1|P2'
+  body_start_line: 0
+modules:
+  identity: [ACC]
+  billing: [BIL]
+  notifications: [NOT]
+  cross-cutting: [NFR]
+phases:
+  0:
+    name: Foundations
+    domains: [ACC, NOT, NFR]
+    gate: A person can register, verify and be notified.
+  1:
+    name: Billing
+    domains: [BIL]
+    gate: A test purchase writes balanced ledger entries.
+overrides: {}
+layers:
+  api:
+    owns: ['app/**', 'routes/api.php', 'routes/api/**', 'bootstrap/**',
+           'composer.json', 'composer.lock', 'tests/Feature/**']
+  surface:
+    owns: ['resources/js/**', 'resources/css/**', 'routes/web.php']
+    requires_contracts: [C-00]
+    depends_on_layer: api
+transport_coupled: [notifications]
+journeys:
+  J1:
+    name: Sign up and verify
+    steps:
+      - {id: J1.1, text: creates an account}
+      - {id: J1.2, text: verifies the email address}
+entities: [account, order, ledger, subscription, receipt, session, notification]
+config_for_domain:
+  ACC: [security]
+  NOT: [notifications]
+glossary:
+  ACC: A User holds credentials only; there is no user_type column.
+open_questions:
+  OQ-01: {kind: blocker, gates_phase: 1, owner: Finance}
+  OQ-02: {kind: parameter, owner: Product}
+max_acceptance_tests: 12

@@ -1,0 +1,4 @@
+pyyaml>=6
+
+[:python_version < "0"]
+culori-py

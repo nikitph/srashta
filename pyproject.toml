@@ -1,0 +1,16 @@
+[project]
+name = "srashta"
+version = "0.1.1"
+description = "Spec to agent-ready tickets. The CLI does bookkeeping and enforcement; your agent does judgment."
+requires-python = ">=3.10"
+dependencies = ["pyyaml>=6", "culori-py; python_version<'0'"]
+
+[project.scripts]
+srashta = "srashta.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-data]
+srashta = ["templates/**/*"]

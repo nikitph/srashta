@@ -1,0 +1,8 @@
+# Input to pipeline/gen_transition_tests.py. One entry per stateful object.
+# A table plus "any transition not listed is forbidden" is a complete test oracle:
+# every listed transition is asserted accepted, every unlisted pair asserted rejected.
+<object_name>:
+  states: [<state>, <state>]
+  terminal: []                    # states with no exit at all, including to themselves
+  transitions:
+    - {from: <state>, to: <state>, trigger: "<trigger and constraint>"}

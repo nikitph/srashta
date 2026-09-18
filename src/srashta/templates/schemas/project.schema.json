@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://foundry.local/schemas/project.schema.json",
+  "title": "Project configuration",
+  "description": "The only project-specific input to the pipeline. Everything else is generic.",
+  "type": "object",
+  "required": ["project","spec","modules","phases"],
+  "properties": {
+    "project": {"type":"string"},
+    "spec": {
+      "type":"object","required":["path"],
+      "properties": {
+        "path": {"type":"string"},
+        "id_pattern": {"type":"string","default":"FR-[A-Z]{2,6}-\\d{3}|NFR-\\d{3}"},
+        "priority_pattern": {"type":"string","default":"P0|P1|P2"},
+        "body_start_line": {"type":"integer","default":0,
+          "description":"Skip a table of contents that repeats identifiers."},
+        "footer_pattern": {"type":["string","null"]},
+        "header_pattern": {"type":["string","null"]}
+      }
+    },
+    "modules": {"type":"object","description":"module name -> list of requirement-domain prefixes"},
+    "phases": {"type":"object","description":"phase number -> {name, domains, gate}"},
+    "overrides": {"type":"object","description":"requirement id -> {phase, reason}"},
+    "open_questions": {"type":"object","description":"OQ id -> {kind: blocker|parameter, gates_phase, owner}"}
+  }
+}

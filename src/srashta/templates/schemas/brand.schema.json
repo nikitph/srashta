@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://foundry.local/schemas/brand.schema.json",
+  "title": "Brand identity",
+  "description": "Produced by step 2. Consumed by the design system, which freezes as a phase-0 contract, and by the marketing harness.",
+  "type": "object",
+  "required": ["product","adjectives","audience","colour","typography","voice"],
+  "properties": {
+    "product": {"type":"string"},
+    "tagline": {"type":["string","null"]},
+    "positioning": {"type":["string","null"],"description":"One sentence: for whom, what, unlike what."},
+    "adjectives": {"type":"array","items":{"type":"string"},"minItems":3,"maxItems":5,
+                   "description":"What an agent extrapolates from when improvising."},
+    "audience": {"enum":["internal-staff","business-users","consumers","mixed"]},
+    "colour": {
+      "type":"object","required":["brand_hue","brand_chroma","neutral"],
+      "properties": {
+        "brand_hue": {"type":"number","minimum":0,"maximum":360},
+        "brand_chroma": {"type":"number","minimum":0,"maximum":0.4},
+        "neutral": {"enum":["cool","warm","pure"]},
+        "rationale": {"type":["string","null"]}
+      }
+    },
+    "typography": {
+      "type":"object","required":["sans","scripts"],
+      "properties": {
+        "sans": {"type":"string"},
+        "mono": {"type":["string","null"]},
+        "display": {"type":["string","null"]},
+        "scripts": {"type":"array","items":{"type":"string"},"minItems":1,
+                    "description":"Every script the UI must render. Fonts MUST cover all of them."}
+      }
+    },
+    "voice": {
+      "type":"object","required":["register"],
+      "properties": {
+        "register": {"enum":["plain","warm","formal","technical","playful"]},
+        "person": {"type":["string","null"]},
+        "avoid": {"type":"array","items":{"type":"string"}},
+        "examples": {"type":"array","items":{"type":"string"}}
+      }
+    },
+    "form": {
+      "type":"object",
+      "properties": {
+        "radius": {"enum":["sharp","soft","round"]},
+        "density": {"enum":["compact","default","comfortable"]},
+        "dark_mode": {"type":"boolean"},
+        "imagery": {"type":["string","null"]}
+      }
+    },
+    "assets": {
+      "type":"object",
+      "properties": {"logo":{"type":["string","null"]},"wordmark":{"type":["string","null"]}}
+    }
+  }
+}

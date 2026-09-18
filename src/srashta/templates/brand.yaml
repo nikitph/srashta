@@ -1,0 +1,36 @@
+# Step 2 output. Consumed by the design system, which freezes as a phase-0 contract,
+# and by the marketing harness. Validated against schemas/brand.schema.json.
+product: <name>
+tagline: null
+positioning: <for whom, what, unlike what — one sentence>
+
+adjectives: [<three to five>]     # what an agent extrapolates from when improvising
+audience: business-users          # internal-staff | business-users | consumers | mixed
+
+colour:
+  brand_hue: 250                  # OKLCH hue 0-360
+  brand_chroma: 0.15              # 0.08 muted … 0.22 vivid
+  neutral: cool                   # cool | warm | pure
+  rationale: null
+
+typography:
+  sans: Inter
+  mono: JetBrains Mono
+  display: null
+  scripts: [latin]                # every script the UI must render; fonts MUST cover all of them
+
+voice:
+  register: plain                 # plain | warm | formal | technical | playful
+  person: null
+  avoid: []
+  examples: []
+
+form:
+  radius: soft                    # sharp | soft | round
+  density: default                # compact | default | comfortable
+  dark_mode: true
+  imagery: null
+
+assets:
+  logo: null
+  wordmark: null

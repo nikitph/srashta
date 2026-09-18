@@ -1,0 +1,115 @@
+srashta_version: 0.1.1     # pinned; `srashta upgrade` migrates deliberately
+blueprint_repo: null       # git url of your srashta repo; `skills --promote` opens a PR there
+# The ONLY project-specific input to the pipeline. Everything in pipeline/ is generic.
+project: <name>
+out_dir: build
+constitution: constitution.md
+defaults: config/defaults.yaml
+
+spec:
+  path: spec/<product>-prd.txt
+  id_pattern: 'FR-[A-Z]{2,6}-\d{3}|NFR-\d{3}'
+  priority_pattern: 'P0|P1|P2'
+  body_start_line: 0        # skip a table of contents that repeats identifiers
+  footer_pattern: null      # e.g. '^\d+\s*/\s*101\s*$'
+  header_pattern: null      # e.g. 'MyProduct PRD · v0\.5\s*$'
+
+modules:                    # module -> requirement-domain prefixes it owns
+  identity: [ACC]
+  cross-cutting: [NFR]
+
+# Backend first. Every api phase runs to completion before any surface phase starts,
+# so brand and the design system are settled at the boundary between them - not up
+# front. By then the published API contract exists, which is what the screens are
+# designed against and what generates the MCP server.
+phases:                     # every domain must appear in exactly one phase
+  0:
+    name: Foundations
+    layer: api
+    domains: [ACC, NFR]
+    gate: <verifiable condition>
+#  7:
+#    name: API contract
+#    layer: api
+#    domains: []
+#    gate: OpenAPI published, every journey step reachable, MCP server generated
+#    gate_artifacts: [docs/openapi.yaml]
+#  8:
+#    name: Screens
+#    layer: surface
+#    domains: []
+#    gate: every journey walkable end to end in a browser
+#    gate_artifacts: [docs/openapi.yaml]   # required BEFORE this phase decomposes
+
+overrides: {}               # requirement id -> {phase, reason}   reason is mandatory
+
+# Layer separation. Business logic is finished server-side before any screen exists.
+# Endpoints have precise contracts, so their acceptance criteria map 1:1 onto tests and
+# an agent verifies itself. Screens carry taste, so they need your eye - and by the time
+# they are built, both the endpoints and the design tokens are frozen, which means you
+# can iterate on a layout freely without touching anything else.
+layers:
+  api:
+    owns: ['app/**', 'routes/api.php', 'routes/api/**', 'bootstrap/**',
+           'database/**', 'composer.json', 'composer.lock',
+           'tests/Feature/**', 'tests/Unit/**']
+  surface:
+    owns: ['resources/js/**', 'resources/css/**', 'routes/web.php', 'tests/Browser/**']
+    requires_contracts: [C-00]      # the design system
+    depends_on_layer: api           # a screen with no endpoint behind it is built on a guess
+
+# Modules that genuinely do not decouple: real-time channels, uploads, OAuth redirects,
+# canvas sync. Tickets in these may span layers, declared as layer: coupled.
+# Exemption by declaration, never by accident.
+transport_coupled: []
+
+# Contention that file ownership cannot see: three endpoint tickets with different
+# files all need routes/api.php. Prefer removing the contention over managing it.
+#   fragment      - split per module; the aggregate loads the fragments. No edge.
+#   contract_only - shared structure belongs to a contract, not a feature ticket.
+#   serialise     - irreducible; the validator adds an explicit edge at PLAN time,
+#                   so the ordering is visible in the wave numbers rather than
+#                   discovered as a stall by two agents at once.
+shared_resources: {}
+#  api_routes:
+#    paths: ['routes/api.php']
+#    strategy: fragment
+#    fragment: 'routes/api/{module}.php'
+#  dependencies:
+#    paths: ['composer.json', 'composer.lock', 'package.json', 'package-lock.json']
+#    strategy: contract_only
+#  db_schema:
+#    paths: ['database/migrations/*']
+#    strategy: contract_only
+#  container:
+#    paths: ['bootstrap/app.php']
+#    strategy: serialise
+
+# Decisions already settled, with the alternative that lost. These are rendered into the
+# pack of every ticket they constrain, because an agent that does not know a choice was
+# deliberate will helpfully "improve" it back to the thing you rejected.
+# Lift these from the spec's ADR sections.
+decisions: {}
+#  D-01:
+#    decision: Payment is taken in full at purchase; a trial cancellation is a refund.
+#    rejected: Authorise-and-capture — it puts a failed-payment path at the end of every trial.
+#    constrains: [FR-COM-074, commerce]      # requirement ids and/or module names
+
+# Endpoints must fall out of what a person actually does, not out of the entity model.
+# Every api ticket cites the step(s) it makes possible; the validator warns on any step
+# nothing serves.
+journeys: {}
+#  J1:
+#    name: Tutor - application to first published course
+#    steps:
+#      - {id: J1.1, text: applies with credentials and subjects}
+#      - {id: J1.2, text: reviewer approves and the tutor role is granted}
+
+entities: []                # nouns the DSM uses to detect coupling; take them from the glossary
+
+config_for_domain: {}       # domain -> config sections its context packs should carry
+glossary: {}                # domain -> the one rule an agent must not forget
+
+open_questions: {}          # OQ id -> {kind: blocker|parameter, gates_phase, owner, answered}
+
+max_acceptance_tests: 12    # warn above this; lower it once the retrospective calibrates it

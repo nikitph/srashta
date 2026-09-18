@@ -1,0 +1,5 @@
+security:
+  session_idle_expiry_minutes: 60
+  verification_link_ttl_minutes: 60
+notifications:
+  dispatch_sla_seconds: 60
