@@ -28,9 +28,10 @@ def build(cfg, reqs):
 
     ent_index = defaultdict(set)
     for r in reqs:
-        t = r['text'].lower()
+        body = r['text'] + ' ' + ' '.join(r.get('criteria', []))
+        t = body.lower()
         # explicit cross-reference: strongest signal
-        for other in id_re.findall(r['text']):
+        for other in id_re.findall(body):
             if other in ids: add(r['id'], other, W_XREF, 'xref')
         for e in entities:
             if re.search(rf'\b{re.escape(e)}s?\b', t): ent_index[e].add(r['id'])
@@ -54,7 +55,7 @@ def build(cfg, reqs):
                  if re.search(rf'\b{re.escape(e)}s?\b', r['text'].lower())
                  and 2 <= len(ent_index[e]) and len(ent_index[e]) / n <= MAX_ENTITY_SHARE]
         for e in named:
-            for other in ent_index[e]: add(r['id'], other, W_ATOMIC, f'atomic:{e}')
+            for other in sorted(ent_index[e]): add(r['id'], other, W_ATOMIC, f'atomic:{e}')
 
     edges = {k: v for k, v in edges.items() if v >= MIN_EDGE}
     return edges, {k: why[k] for k in edges}
@@ -67,7 +68,7 @@ def cluster(reqs, edges, seed_of):
         adj[a].append((b, w)); adj[b].append((a, w))
     for _ in range(12):
         changed = False
-        for r in sorted(adj, key=lambda x: -len(adj[x])):
+        for r in sorted(adj, key=lambda x: (-len(adj[x]), x)):
             tally = defaultdict(float)
             for n, w in adj[r]: tally[label[n]] += w
             # inertia scaled to the node's own connectivity, so a densely linked

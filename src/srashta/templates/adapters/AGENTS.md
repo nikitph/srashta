@@ -23,7 +23,7 @@ Your complete brief is `build/context-packs/phase-N/<TICKET>.md`.
 - **If a frozen contract needs to change, stop and file a contract-change ticket.** Do not
   edit it. A contract is frozen so other agents can rely on it while you work.
 - If the pack carries a BLOCKED banner, do not start.
-- Record what happened: `srashta event <TICKET> attempt_started|tests_failed|merged ...`
+- Record what happened: `srashta event <TICKET> attempt_started|tests_failed|merged --phase N ...`
 
 ## If you are running a pipeline step
 
@@ -47,5 +47,5 @@ Never hand-assign a wave — the graph derives them. Never give two feature tick
 requirement. Never widen a ticket's file ownership to dodge a dependency. Never weaken a
 validator check to make a decomposition pass: the check is the specification.
 
-Never hand-edit anything under `build/`. It is a derived view, regenerated from `spec/` and
+Never hand-edit anything under `build/`. It is a derived view, regenerated from `spec/`, `tickets/` and
 `project.yaml`, and your edit will be silently discarded on the next run. Change the source.

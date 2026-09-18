@@ -1,18 +1,11 @@
-<!-- The invariant rules every ticket inherits. Lives in the blueprint, not the project.
-     Replace the stack lines for a different stack; the discipline lines carry over. -->
-Laravel 12 · Inertia · React · shadcn/ui · Pest · Postgres.
+Laravel 12 · API first · Pest tests. Configure the production database explicitly.
 
 Modules live under app/Modules/<Module>/. One application action per file.
-Authorisation is a policy at the action layer, never only in the interface.
-
-**No controller contains business logic.** A controller method calls one action and wraps
-the response - a JSON resource in the API controller, an Inertia render in the web one.
-Both call the SAME action. This is what makes the two surfaces provably equivalent rather
-than merely parallel, and it is checked in CI.
-Every state transition goes through its state machine, never a direct attribute write.
-Colours come from semantic design tokens only; CI rejects raw hex and palette utilities.
-Spacing comes from the scale; no arbitrary values.
-Tests are Pest. Time is read through the Clock interface, never sleep().
-Background work is idempotent: a job that runs twice produces no duplicate effect.
-Every screen needs loading, empty and error states from the pattern library.
-Need a new token, pattern or contract? Do not invent it inline — file a change ticket.
+Authorisation belongs at the action boundary, never only in a screen.
+Controllers delegate business operations to actions and wrap their responses.
+Every declared state transition goes through its state machine.
+Read runtime defaults through App\Support\ProvisionalConfig; never bypass a blocked key.
+Time-dependent behavior uses a freezable clock. Tests use fakes and never sleep or call remote services.
+Background work is idempotent: repeating a job must not duplicate its effect.
+A frozen contract change requires separate review. A feature ticket cannot change it.
+Surface work, brand/design-system and MCP generation are outside version 0.1.

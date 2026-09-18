@@ -15,7 +15,7 @@ def test_multiline_text_is_joined(cfg):
 
 def test_ears_criteria_are_not_swallowed_as_new_rows(cfg):
     reqs = {r['id']: r for r in extract.main(cfg)}
-    assert 'THE SYSTEM SHALL create an account' in reqs['FR-ACC-001']['text']
+    assert any('THE SYSTEM SHALL create an account' in c for c in reqs['FR-ACC-001']['criteria'])
 
 def test_refuses_a_partial_parse(cfg):
     """A too-narrow id pattern must fail loudly, never silently drop a domain."""

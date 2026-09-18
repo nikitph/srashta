@@ -19,7 +19,7 @@ def write(ts):
 def prep(cfg):
     extract.main(cfg); assign.main(cfg)
     os.makedirs('contracts', exist_ok=True)
-    open('contracts/phase-0.md','w').write('c'); open('contracts/phase-0.approved','w').write('')
+    open('contracts/phase-0.md','w').write('c'); __import__('srashta.approvals', fromlist=['approve']).approve(cfg, 0, 'test reviewer')
 
 def sound():
     return [t('C-00', [], files=['resources/css/app.css'], layer='surface'),
@@ -139,12 +139,16 @@ def test_brand_is_not_asked_for_while_backend_is_pending(project):
 
 def test_brand_is_asked_for_at_the_api_surface_boundary(project):
     setup_backend(project); _done(0)
+    config = yaml.safe_load(open('project.yaml')); config['open_questions'] = {}
+    yaml.safe_dump(config, open('project.yaml', 'w'))
     cfg, s = st_mod.detect('.')
     who, what = st_mod.next_action(cfg, s)
     assert 'endpoints are done' in what and 'brand-identity' in what
 
 def test_design_system_follows_brand(project):
     setup_backend(project); _done(0)
+    config = yaml.safe_load(open('project.yaml')); config['open_questions'] = {}
+    yaml.safe_dump(config, open('project.yaml', 'w'))
     open('brand.yaml','w').write('product: x')
     cfg, s = st_mod.detect('.')
     assert 'design-system-bootstrap' in st_mod.next_action(cfg, s)[1]
@@ -152,6 +156,8 @@ def test_design_system_follows_brand(project):
 def test_the_api_contract_gates_screen_decomposition(project):
     """Screens are designed against what exists, not against an imagined payload."""
     setup_backend(project); _done(0)
+    config = yaml.safe_load(open('project.yaml')); config['open_questions'] = {}
+    yaml.safe_dump(config, open('project.yaml', 'w'))
     open('brand.yaml','w').write('product: x'); open('DESIGN.md','w').write('tokens')
     cfg, s = st_mod.detect('.')
     who, what = st_mod.next_action(cfg, s)
@@ -159,6 +165,8 @@ def test_the_api_contract_gates_screen_decomposition(project):
 
 def test_screens_decompose_once_the_contract_is_published(project):
     setup_backend(project); _done(0)
+    config = yaml.safe_load(open('project.yaml')); config['open_questions'] = {}
+    yaml.safe_dump(config, open('project.yaml', 'w'))
     open('brand.yaml','w').write('product: x'); open('DESIGN.md','w').write('tokens')
     os.makedirs('docs', exist_ok=True); open('docs/openapi.yaml','w').write('openapi: 3.1.0')
     cfg, s = st_mod.detect('.')

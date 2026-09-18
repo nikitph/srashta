@@ -1,7 +1,13 @@
-srashta_version: 0.1.1     # pinned; `srashta upgrade` migrates deliberately
+srashta_version: 0.1.2     # pinned; `srashta upgrade` migrates deliberately
 blueprint_repo: null       # git url of your srashta repo; `skills --promote` opens a PR there
 # The ONLY project-specific input to the pipeline. Everything in pipeline/ is generic.
 project: <name>
+artifact_version: 2
+tickets_dir: tickets
+verification_commands:
+  - [php, artisan, test]
+api_contract: docs/openapi.yaml
+api_generate: [php, artisan, "scramble:export", "--path={output}", --fail-on-unknown]
 out_dir: build
 constitution: constitution.md
 defaults: config/defaults.yaml
@@ -110,6 +116,7 @@ entities: []                # nouns the DSM uses to detect coupling; take them f
 config_for_domain: {}       # domain -> config sections its context packs should carry
 glossary: {}                # domain -> the one rule an agent must not forget
 
+# Runtime-value blockers also declare config_key: dotted.path.in.defaults
 open_questions: {}          # OQ id -> {kind: blocker|parameter, gates_phase, owner, answered}
 
 max_acceptance_tests: 12    # warn above this; lower it once the retrospective calibrates it

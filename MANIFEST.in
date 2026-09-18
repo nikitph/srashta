@@ -1,0 +1,6 @@
+include README.md CHANGELOG.md
+recursive-include src/srashta/templates *
+recursive-include tests *.py *.yaml *.txt
+recursive-include examples *.py
+prune src/srashta/__pycache__
+global-exclude *.py[cod]

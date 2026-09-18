@@ -1,165 +1,21 @@
-# The Procedure
+# Srashta procedure — idea to API
 
-A harness-neutral method for turning a product idea into agent-ready tickets, and for keeping the
-resulting build honest. It assumes autonomous coding agents do the implementation and a human
-supplies judgment at a small number of gates.
+The Python CLI handles consistency and evidence. A planning agent authors judgment; a human approves contract design; an external orchestrator runs workers and merges reviewed work. Version 0.1 ends at backend/API freeze.
 
-Nothing in this document is specific to a model, a vendor, or a coding tool. The enforcement lives
-in `pipeline/` and `schemas/`. **Conformance means the validator passes**, not that an agent
-followed prose. Any agent that can read a spec, write files, and run Python can execute this.
+1. Shape the idea into actors, journeys, scope and explicit non-goals. Author stable requirement identifiers and EARS acceptance criteria in `spec/`. Configure modules, phases, defaults, questions and concrete `verification_commands` in `project.yaml`.
+2. Run `srashta run`. Resolve parser, lint, assignment and module-boundary problems. Module analysis is a planning aid, not an authoritative decomposition.
+3. At the start of one phase, write `contracts/phase-N.md`: schemas, interfaces, state machines, event payloads, action boundaries and test doubles. Resolve blockers gating that phase. A human reviews the design and records `srashta approve N --by NAME`. A changed design requires new approval.
+4. Author **`tickets/phase-N.json`**. Include dependencies, exclusive owned paths, acceptance tests, evidence, layer and relevant journey steps. Each contract ticket includes a bounded `contract_context` copied exactly from the approved design. Every requirement has one feature owner; contract tickets support requirements and integration tickets assert them.
+5. Run `srashta waves N`, `srashta validate N`, `srashta packs N`, `srashta export N`. Waves are derived, not assigned. Shared resources use fragments, contract-only ownership, or explicit serialization edges. Commit source and derived graph before execution.
+6. The orchestrator uses `srashta eligible N --json`; external claims belong in `state/phase-N.json`. Only verified merge events count as completion. A lower unfinished wave blocks the next wave. The orchestrator provides one `srashta worker N TICKET --dest NEW_DIRECTORY` export inside a real sandbox. Workers receive their brief plus application context, never the specification, other briefs, or Git history. The worker returns a patch and evidence. Missing context is repaired by planning; workers do not query memory or the PRD.
+7. Integrate each ticket on a branch named `TICKET-description`. Run `srashta verify N TICKET --base BASE_COMMIT` on committed code. This checks ownership against the base graph, protected/frozen paths, commit traceability and configured test commands. Record `brief_feedback`, then a `merged` event with the verified `head`; contract and integration tickets also record `reviewed_by`. Remote approval and merge checks remain the orchestrator's job. Preserve `events/` and `evidence/` in Git.
+8. Write the phase retrospective. Apply learning deliberately to project guides; `skills --full` shows differences and `--sync` protects edits. `srashta close N --by NAME` requires verified evidence, brief feedback, a retrospective and passing checks. Commit its receipt. Only then begin the next phase.
+9. Generate the API continuously with `srashta api generate`; the operator/orchestrator publishes the reviewed generated artifact. After all backend phases close, run `srashta api freeze --by NAME`. CI uses `srashta api check --base BASE_COMMIT` to compare against the trusted base freeze. A reviewed contract change is a separate planning change; never remove the freeze within a feature ticket.
 
----
+## Durable and derived
 
-## Why this exists
+Durable: specification, config, contract design/approval, authored tickets, guides, execution events, verification evidence and retrospective/closure receipts. Derived: requirements indexes, normalized tickets, briefs, handoff bundles and generated OpenAPI. No generated view can recover a lost planning decision or historical test run.
 
-An agent given a whole specification drifts. Several agents given the same specification invent the
-same shared structures separately, each pass their own tests, and disagree at merge. The fix is not
-a better prompt; it is an intermediate layer.
+Approval, review and closure receipts record assertions and hashes; they do not authenticate human identity. Repository permissions, protected branches and the orchestrator establish authority. Filesystem isolation is also an orchestrator responsibility. The CLI does not deploy, invoke a model or certify semantic completeness from prose.
 
-The method is assembled from established practice rather than invented:
-
-| Element | Established as |
-|---|---|
-| Total coverage, one owner per requirement | WBS 100% rule + mutual exclusivity |
-| Frozen contracts enabling parallel work | Design rules — Baldwin & Clark, *Design Rules* (2000) |
-| Modules and cross-module flows | Information hiding (Parnas 1972); bounded contexts (Evans) |
-| Dependency-derived waves | Topological layering; Parnas "uses" hierarchy |
-| Requirement → ticket → test links | Requirements traceability matrix (ISO/IEC/IEEE 29148) |
-| Acceptance criteria | EARS (Mavin et al. 2009); Specification by Example (Adzic) |
-| Transition tables tested both ways | Model-based testing: transition tour + sneak path |
-| Decisions with rejected alternatives | Architecture Decision Records (Nygard 2011) |
-| Interfaces with in-memory fakes | Ports and adapters (Cockburn); test doubles (Meszaros) |
-| Spec defect detection | Requirements smells (Femmer et al., *JSS* 2016) |
-| Defaulting open questions to keep moving | Set-based concurrent engineering; last responsible moment |
-
-Two elements are not covered by that literature, because it assumes a human consumer who can be
-trusted to look things up and ignore the rest:
-
-- **Bounded context packs.** Information hiding applied to the agent's context window. The agent
-  receives its pack and nothing else.
-- **Granularity calibration.** What size of unit one autonomous agent run completes reliably is an
-  open empirical question, measured by step 7.
-
----
-
-## The steps
-
-### 0 — Shape (human-led)
-Idea → problem statement, actors, primary journeys, explicit non-goals. No artifact schema; the
-output is whatever feeds step 1.
-
-### 1 — Author the spec
-**Runs:** once per project. **Output:** a spec meeting `schemas/spec-conformance.json`.
-
-Stable permanent identifiers, EARS acceptance criteria, a transition table per stateful object,
-ADR-form decisions, an open-questions register with owners, working assumptions as placeholder
-values, and a phase plan that names every domain. Prose rationale stays unconstrained — the spec
-has human readers whose job is to notice a *wrong* requirement, which no linter can do.
-
-**Gate:** `pipeline/lint_spec.py` passes.
-
-### 2 — Brand identity  *(forks off step 1 once positioning and personas are settled)*
-**Output:** `brand.yaml` conforming to `schemas/brand.schema.json`.
-
-Does not wait for the finished spec. Must be complete before the design system freezes.
-
-### 3 — Readiness audit
-**Runs:** once per project. **Outputs:** `requirements.json`, `config/defaults.yaml`,
-`audit.md`.
-
-Every open question classified **blocker** (changes the shape of the system) or **parameter**
-(changes a value, gets a default). Every parameter default recorded in one place so no ticket
-hardcodes one. Spec defects reported, especially coverage gaps — domains the phase plan never
-names.
-
-**Gate:** human answers blockers gating the first phase. Everything else proceeds on defaults.
-
-### 4 — Architecture map
-**Runs:** once per project. **Outputs:** `dsm.json`, `modules.md`.
-
-Module boundaries derived from a dependency structure matrix, with the requirement-domain prefix as
-a prior. Disagreements between the two are the signal. Cross-module flows fall out of the matrix,
-ranked by clusters touched; that ranking is the contract agenda.
-
-### 5 — Phase plan
-**Runs:** once per project. **Output:** `requirements.assigned.json`.
-
-Every requirement in exactly one phase. Domain defaults plus per-ID overrides, each with a stated
-reason. Asserted total.
-
-### 6 — Phase decomposition
-**Runs:** once per phase, when that phase starts.
-
-**6a Contract design** — schema, state machines, actions, event payload schemas, interfaces with
-fakes, config keys. Includes writing the state machines the spec omitted. **Human approval gate.**
-
-**6b Contract build and freeze** — contract tickets implement it. Transition tests and
-consumer-driven contract tests are *generated*, not written. Frozen on merge.
-
-**6c Tickets** — waves derived from the dependency graph; one owner per requirement; exclusive file
-ownership within a wave; acceptance tests from EARS criteria; blockers propagated; context packs
-emitted.
-
-**Gate:** `pipeline/validate.py` exits zero.
-
-### 7 — Retrospective
-**Runs:** at each phase exit gate. Reads the telemetry the orchestrator filled in during execution.
-Answers five questions with numbers, and splits corrections three ways: this project's next phase,
-the blueprint, the method.
-
----
-
-## Who decides what
-
-| Decision | Who |
-|---|---|
-| What to build, and the requirements | Human |
-| Brand direction — 3 or 4 choices | Human |
-| Blocker answers | Human, or whoever they route to |
-| **Contract approval, per phase** | Human — the highest-leverage gate |
-| Review gates: design review, first screens, integration journeys | Human |
-| Everything else | Agents, bounded by the validator |
-
----
-
-## Artifact flow
-
-```
-spec.md ──lint──► requirements.json ──┬──► dsm.json ──► modules.md
-                                      │
-brand.yaml ──► design-system ─────────┤
-                                      ├──► requirements.assigned.json
-config/defaults.yaml ─────────────────┤
-                                      ▼
-                         contracts/phase-N.md  (human gate)
-                                      │
-                                      ▼
-                        tickets/phase-N.json ──► context-packs/*.md
-                                      │              │
-                                  validate.py        └──► one agent, one ticket
-                                      │
-                                      ▼
-                            execution + telemetry
-                                      │
-                                      ▼
-                          retrospectives/phase-N.md
-                                      │
-                    ┌─────────────────┼─────────────────┐
-                    ▼                 ▼                 ▼
-             next phase          blueprint           method
-```
-
----
-
-## Portability
-
-The core is Python 3 and JSON. It has no dependency on any agent framework.
-
-- **Inputs** are plain text and YAML.
-- **Intermediates** are JSON validated against `schemas/`.
-- **Context packs** are plain Markdown — any agent consumes them.
-- **`tickets/phase-N.json`** is the orchestrator interface. Any system that can create a ticket,
-  route it, and record five telemetry fields can drive this.
-
-`adapters/` holds thin entry points per harness. They contain no logic. Replacing an adapter is the
-whole cost of supporting a new agent.
+Run `srashta bootstrap` after each clone to enable local hooks. CI trace checks are the fallback for commits created without hooks. Transition-test templates require their adapter to be connected to the real action; generating test text alone is not verification.

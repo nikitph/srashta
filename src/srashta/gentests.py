@@ -13,7 +13,7 @@ Input: machines.yaml
     transitions:
       - {from: active, to: suspended, trigger: "administrator suspends with a reason"}
 """
-import sys, yaml, os
+import sys, yaml, os, re, json
 
 TEMPLATES = {
 'pest': '''<?php
@@ -32,6 +32,7 @@ dataset('{name}_forbidden', [
 
 it('accepts every permitted {name} transition', function (string $from, string $to) {{
     expect({Machine}::allows($from, $to))->toBeTrue();
+    {Machine}::apply($from, $to);
 }})->with('{name}_permitted');
 
 it('rejects every forbidden {name} transition at the action layer', function (string $from, string $to) {{
@@ -53,6 +54,7 @@ FORBIDDEN = [
 @pytest.mark.parametrize("frm,to", PERMITTED)
 def test_permitted_{name}(frm, to):
     assert {Machine}.allows(frm, to)
+    {Machine}.apply(frm, to)
 
 @pytest.mark.parametrize("frm,to", FORBIDDEN)
 def test_forbidden_{name}(frm, to):
@@ -73,6 +75,7 @@ const forbidden: [string, string][] = [
 describe('{name} transitions', () => {{
   it.each(permitted)('accepts %s -> %s', (from, to) => {{
     expect({Machine}.allows(from, to)).toBe(true);
+    {Machine}.apply(from, to);
   }});
   it.each(forbidden)('rejects %s -> %s', (from, to) => {{
     expect(() => {Machine}.apply(from, to)).toThrow(ForbiddenTransition);
@@ -86,18 +89,31 @@ def generate(machines, flavour='pest', outdir='tests/Generated'):
     os.makedirs(outdir, exist_ok=True)
     written, counts = [], {}
     for name, m in machines.items():
+        if not re.fullmatch(r'[a-z][a-z0-9_]*', name):
+            raise ValueError('machine name must be a lowercase identifier')
+        if not all(isinstance(x, str) and x for x in m['states']):
+            raise ValueError('states must be nonempty strings')
         states = list(m['states'])
         listed = {(t['from'], t['to']) for t in m['transitions']}
         terminal = set(m.get('terminal', []))
         forbidden = [(a, b) for a in states for b in states
-                     if a != b and (a, b) not in listed]
+                     if (a, b) not in listed]
         # a terminal state must have no exit at all, including to itself
-        forbidden += [(a, a) for a in terminal if (a, a) not in listed]
-        row = FMT[flavour]
+        if len(states) != len(set(states)) or not states:
+            raise SystemExit(f'ERROR: {name}: states must be nonempty and unique')
+        if not terminal <= set(states) or any(a not in states or b not in states for a, b in listed):
+            raise SystemExit(f'ERROR: {name}: unknown state in transitions or terminal set')
+        if any(a in terminal for a, b in listed):
+            raise SystemExit(f'ERROR: {name}: terminal state has an outgoing transition')
+        def row(a, b):
+            quoted = [json.dumps(x, ensure_ascii=False) for x in (a,b)]
+            if flavour == 'pest': quoted = [x.replace('$', r'\$') for x in quoted]
+            braces = ('(', ')') if flavour == 'pytest' else ('[', ']')
+            return '    ' + braces[0] + ', '.join(quoted) + braces[1] + ','
         body = TEMPLATES[flavour].format(
             name=name, Machine=''.join(p.capitalize() for p in name.split('_')) + 'Machine',
-            permitted='\n'.join(row.format(a=a, b=b) for a, b in sorted(listed)),
-            forbidden='\n'.join(row.format(a=a, b=b) for a, b in sorted(forbidden)))
+            permitted='\n'.join(row(a,b) for a, b in sorted(listed)),
+            forbidden='\n'.join(row(a,b) for a, b in sorted(forbidden)))
         ext = {'pest': 'Test.php', 'pytest': '_test.py', 'vitest': '.test.ts'}[flavour]
         fn = os.path.join(outdir, f"{name}{ext}")
         open(fn, 'w').write(body); written.append(fn)

@@ -5,20 +5,20 @@ description: Design and freeze one phase's contracts, then cut it into agent-rea
 # Phase Decomposition
 Contracts are what Baldwin & Clark call *design rules* — visible parameters frozen early so hidden work proceeds in parallel. Without them every agent invents the shared pieces separately, passes its own tests, and disagrees at merge.
 
-First confirm no blocker gating this phase is unanswered. Schema and interface work that **accommodates either answer** may proceed; only work that **applies** the value is blocked. Make that distinction rather than blocking the phase.
+First confirm no blocker gating this phase is unanswered. A question with gates_phase blocks the whole phase. For a narrower unresolved choice, omit gates_phase and attach its blocker only to the affected tickets.
 
 ## Contract design — the highest-leverage gate
 Schema (note binding negative constraints like "there is no type column"; agents reintroduce these). State machines as transition tables. Actions with signatures and single-writer paths. Events with payload **schemas**, not prose. Interfaces with in-memory fakes — **always a freezable Clock**, since anything with a TTL is untestable without one and tests that sleep flake. Config keys from `defaults.yaml`.
 
 > **Check for machines the spec does not have.** Enumerate every stateful object in the phase and write the missing tables into `machines.yaml`. This is usually the highest-value output of the whole step.
 
-End with what the contract deliberately does not decide, and why the schema accommodates either answer. Then **stop for human approval**; the marker is `contracts/phase-N.approved`.
+End with what the contract deliberately does not decide, and why the schema accommodates either answer. Then **stop for human approval**; record approval with `srashta approve N --by NAME`; its receipt binds the design contents.
 
 ## Build and freeze
 `srashta gentests` emits transition-tour and sneak-path tests from the tables — never hand-write them. Register a consumer contract per event listener. On merge, contracts are frozen: a feature ticket may *use* one and must never *change* one.
 
 ## Tickets
-Author ids, titles, modules, requirements, dependencies, owned files and acceptance tests — then `srashta waves N` derives the rest in place: waves, contracts used, blocker propagation, and the edges that keep a shared resource uncontended. A graph that did not come from it is rejected, and nothing else can be checked until it does. Rules, all machine-checked: waves **derived** from the dependency graph, never assigned; exactly one *feature* ticket owns each requirement (contracts *support*, others *assert*); file ownership exclusive within a wave; one acceptance test per EARS criterion; blockers propagate; every ticket rests transitively on a frozen contract.
+Author ids, titles, modules, requirements, dependencies, owned files and acceptance tests — then `srashta waves N` reads `tickets/phase-N.json` and writes the derived graph in `build/tickets/phase-N.json`: waves, contracts used, blocker propagation, and the edges that keep a shared resource uncontended. A graph that did not come from it is rejected, and nothing else can be checked until it does. Rules, all machine-checked: waves **derived** from the dependency graph, never assigned; exactly one *feature* ticket owns each requirement (contracts *support*, others *assert*); file ownership exclusive within a wave; acceptance tests are required (a reviewer checks their correspondence to EARS criteria); blockers propagate; every ticket rests transitively on a frozen contract.
 
 ### Shared resources — the contention file ownership cannot see
 Exclusive file ownership does not mean no contention: three endpoint tickets with three different controllers all need the route table, and every ownership check passes while they collide. Declare each one in `project.yaml` under `shared_resources`, and list it in a ticket's `touches`.
@@ -40,3 +40,5 @@ If the phase declares `gate_artifacts`, they must exist before it decomposes —
 **Expect the validator to fail, and read each failure as a real defect.** In calibration it failed three times: wave/dependency contradictions, a file collision between concurrent tickets, then seven requirements no ticket implemented. A decomposition that passes first time has not been tested.
 
 Finally `srashta export N`.
+
+Every contract ticket needs `contract_context`: a bounded, exact excerpt from the approved design, copied into dependent briefs. Commit the plan before the first worker starts. Never put authored ticket judgment only in build/.

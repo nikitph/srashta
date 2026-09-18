@@ -79,11 +79,15 @@ def run(cfg, phase=None, verbose=False):
     blockers = {k: v for k, v in cfg.get('open_questions', {}).items()
                 if v.get('kind') == 'blocker' and not v.get('answered')}
     if a.phase is not None:
+        if cfg.get('artifact_version'):
+            from .tickets import source_path, write
+            if source_path(cfg,a.phase).exists(): write(cfg,a.phase)
         tp = out(cfg, f'tickets/phase-{a.phase}.json')
         if not os.path.exists(tp):
             print(f"\n  Next: contracts and tickets for phase {a.phase} are not written yet.")
         else:
             from . import packs, validate
+            if validate.main(cfg, a.phase, quiet=True): return 1
             with contextlib.redirect_stdout(io.StringIO()) as b:
                 packs.main(cfg, a.phase)
             log.write(f"\n===== packs =====\n{b.getvalue()}\n")

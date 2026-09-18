@@ -20,3 +20,5 @@ Read `srashta event --summary --phase N` and the log at `events/phase-N.jsonl`. 
 Where several models worked the phase, compare success by ticket kind and state it as a **routing rule**, not a judgment about a model.
 
 Split corrections three ways and keep the lists separate: **this project's next phase**, **the blueprint**, **the method** (a rule that should be machine-checked rather than remembered — propose the validator check). Mixing a project fix into the blueprint is how blueprints rot.
+
+Close the phase with `srashta close N --by NAME` after the retrospective and verified merge evidence are present. A retrospective file alone does not mean execution is complete. Historical evidence lives in evidence/, outside disposable build/.

@@ -9,8 +9,8 @@ def test_permitted_and_sneak_path_counts(tmp_path):
     _, c = generate(M, 'pest', str(tmp_path))
     permitted, forbidden = c['account']
     assert permitted == 3
-    # 3 states -> 6 ordered pairs, minus 3 listed = 3, plus the terminal self-loop
-    assert forbidden == 4
+    # 3 states -> 9 ordered pairs (including self), minus 3 listed = 6
+    assert forbidden == 6
 
 def test_terminal_state_has_no_exit_at_all(tmp_path):
     generate(M, 'pest', str(tmp_path))

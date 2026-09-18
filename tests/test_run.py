@@ -18,7 +18,7 @@ def test_chain_runs_clean(cfg, capsys):
 def test_chain_reaches_packs_and_the_gate(cfg, capsys):
     extract.main(cfg); assign.main(cfg)
     os.makedirs('contracts', exist_ok=True)
-    open('contracts/phase-0.md','w').write('c'); open('contracts/phase-0.approved','w').write('')
+    open('contracts/phase-0.md','w').write('c'); __import__('srashta.approvals', fromlist=['approve']).approve(cfg, 0, 'test reviewer')
     ts, _, _ = finalise([
         dict(id='C-01', title='c', module='identity', depends_on=[],
              owned_files=['app/c.php'], layer='api', serves=['J1.1','J1.2'],

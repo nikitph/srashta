@@ -13,40 +13,7 @@ import fnmatch, hashlib, json, os, re, shutil, subprocess, sys, tempfile, yaml
 from collections import defaultdict
 from .common import load_project, out, read_json
 
-def _glob_to_regex(g):
-    """Translate a path glob to a regex, keeping ** / * / ? path-aware."""
-    out, i = [], 0
-    while i < len(g):
-        c = g[i]
-        if c == '*':
-            if g[i:i+3] == '**/':  out.append(r'(?:[^/]+/)*'); i += 3; continue
-            if g[i:i+2] == '**':   out.append(r'.*');          i += 2; continue
-            out.append(r'[^/]*');  i += 1; continue
-        if c == '?': out.append(r'[^/]'); i += 1; continue
-        out.append(re.escape(c)); i += 1
-    return re.compile('^' + ''.join(out) + '$')
-
-
-def globs_intersect(a, b):
-    """Do two path patterns share any concrete path? Returns a witness, or None.
-
-    Pattern intersection is decidable but fiddly; constructing a witness is both
-    simpler and far more useful in an error message. Substitute each pattern's
-    literal segments into the other's wildcards and test both directions.
-    """
-    if a == b: return a
-    ra, rb = _glob_to_regex(a), _glob_to_regex(b)
-    if ra.match(b): return b
-    if rb.match(a): return a
-    for src, dst, rs, rd in ((a, b, ra, rb), (b, a, rb, ra)):
-        seg_src, seg_dst = src.split('/'), dst.split('/')
-        if len(seg_src) != len(seg_dst): continue
-        cand = [d if ('*' in s or '?' in s) else s
-                for s, d in zip(seg_src, seg_dst)]
-        w = '/'.join(cand)
-        if '*' not in w and '?' not in w and rs.match(w) and rd.match(w):
-            return w
-    return None
+from .paths import intersect as globs_intersect, matches, outside
 
 
 def _digest(p):
@@ -70,7 +37,7 @@ def derived_drift(cfg):
             with contextlib.redirect_stdout(io.StringIO()):   # shadow run is silent
                 import_module('.extract', package='srashta').main(shadow)
                 import_module('.assign', package='srashta').main(shadow)
-        except BaseException as e:
+        except (Exception, SystemExit) as e:
             # Swallowing this disabled the check exactly when it mattered: a broken
             # spec path plus a hand-edited artifact reported PASSED. An unverifiable
             # artifact is a defect, not an absence of one.
@@ -86,19 +53,8 @@ def derived_drift(cfg):
         return out
 
 def approval_marker(cfg, phase, root='.'):
-    """FR-CON-001/002: contracts are approved before decomposition, and the approval
-    is a file. It was written, displayed by `status`, and read by no gate - so a phase
-    shipped unapproved and nothing said a word."""
-    d = cfg.get('contracts_dir', 'contracts')
-    design = os.path.join(root, d, f'phase-{phase}.md')
-    marker = os.path.join(root, d, f'phase-{phase}.approved')
-    if not os.path.exists(design):
-        return f"{design} does not exist - a phase is decomposed from its contracts"
-    if not os.path.exists(marker):
-        return (f"{marker} does not exist - the contract design has not been approved. "
-                f"Every ticket in this phase inherits those decisions, which is why the "
-                f"approval is a human gate. `touch {marker}` once you have read it.")
-    return None
+    from .approvals import problem
+    return problem(cfg, phase, root)
 
 
 def check(cfg, phase):
@@ -107,12 +63,36 @@ def check(cfg, phase):
     gate = approval_marker(cfg, phase)
     allreq = {r['id'] for r in read_json(out(cfg, 'requirements.assigned.json'))}
     tickets = read_json(out(cfg, f'tickets/phase-{phase}.json'))
+    from .waves import validate_records
+    validate_records(tickets)
+
     req_ids = {r['id'] for r in reqs}
     by_id = {t['id']: t for t in tickets}
     E, W = [], []
     if gate: E.append(gate)
 
-    # 0 PHASE GATES. A phase may declare artifacts that must exist BEFORE it decomposes -
+    if not any(str(p) == str(phase) for p in cfg.get('phases', {})):
+        E.append(f'unknown phase {phase}')
+    if cfg.get('artifact_version'):
+        from .phase import closed
+        for previous in cfg.get('phases', {}):
+            if int(previous) < int(phase) and not closed(cfg, previous):
+                E.append(f'phase {previous} must be closed before phase {phase}')
+        for q, detail in cfg.get('open_questions', {}).items():
+            if detail.get('kind') == 'blocker' and not detail.get('answered') and str(detail.get('gates_phase')) == str(phase):
+                E.append(f'phase {phase} is gated by unanswered blocker {q}')
+        for ticket in tickets:
+            if ticket['module'] not in cfg.get('modules', {}):
+                E.append(f"{ticket['id']} names unknown module {ticket['module']}")
+            if ticket.get('kind') == 'contract':
+                excerpt = ticket.get('contract_context', '')
+                design_path = os.path.join(cfg.get('contracts_dir', 'contracts'), f'phase-{phase}.md')
+                if not isinstance(excerpt,str) or not excerpt.strip():
+                    E.append(f"{ticket['id']} needs a bounded contract_context excerpt for workers")
+                elif os.path.exists(design_path) and excerpt not in open(design_path).read():
+                    E.append(f"{ticket['id']} contract_context must be an exact excerpt of the approved design")
+    # 0 PHASE GATES.
+    # A phase may declare artifacts that must exist BEFORE it decomposes -
     #   the published API contract being the one that matters, since screens are designed
     #   against it. `status` reported these as unmet and then let the decomposition happen
     #   anyway, so the gate was advice. A gate nothing enforces is not a gate.
@@ -127,11 +107,11 @@ def check(cfg, phase):
     # 0b LAYER ORDER. api before surface, project-wide. The whole method rests on the
     #    endpoints being settled before anything is drawn against them; a phase plan that
     #    puts a screen first is that rule broken at the only place it can still be cheap.
-    order = sorted((cfg.get('phases') or {}).items(), key=lambda kv: str(kv[0]))
+    order = sorted((cfg.get('phases') or {}).items(), key=lambda kv: int(kv[0]))
     first_surface = next((k for k, v in order if (v or {}).get('layer') == 'surface'), None)
     if first_surface is not None:
         late_api = [k for k, v in order
-                    if (v or {}).get('layer') == 'api' and str(k) > str(first_surface)]
+                    if (v or {}).get('layer') == 'api' and int(k) > int(first_surface)]
         if late_api:
             E.append(f"phase {first_surface} is a surface phase ordered before api "
                      f"phase(s) {', '.join(str(k) for k in late_api)}. Screens are "
@@ -154,6 +134,14 @@ def check(cfg, phase):
                  f"validate again — nothing else here can be checked until you do.")
         return reqs, tickets, {}, defaultdict(list), defaultdict(list), E, W
 
+    if cfg.get('artifact_version'):
+        from .tickets import derive
+        try:
+            expected = derive(cfg, phase)[0]
+            if expected != tickets:
+                E.append('derived tickets differ from authored source; run srashta waves ' + str(phase))
+        except (SystemExit, ValueError, OSError) as exc:
+            E.append(f'could not verify ticket derivation: {exc}')
     # C- tickets SUPPORT a requirement; exactly one T- ticket OWNS it; any ticket may ASSERT it.
     owners, seen = defaultdict(list), defaultdict(list)
     for t in tickets:
@@ -175,7 +163,7 @@ def check(cfg, phase):
     # 2 citations resolve, and stay inside this phase
     for t in tickets:
         for r in t['requirements'] + t.get('asserts', []):
-            if r.startswith(('FR-', 'NFR-')):
+            if True:
                 if r not in allreq: E.append(f"{t['id']} cites unknown requirement {r}")
                 elif r not in req_ids: E.append(f"{t['id']} cites {r}, assigned to another phase")
 
@@ -216,13 +204,20 @@ def check(cfg, phase):
         except SystemExit as e:
             E.append(f"waves cannot be re-derived: {e}")
 
+    for ticket in tickets:
+        unknown_resources = set(ticket.get('touches', [])) - set(cfg.get('shared_resources', {}))
+        if unknown_resources:
+            E.append(f"{ticket['id']} declares unknown resources {sorted(unknown_resources)}")
     # 3c SHARED RESOURCES. Disjoint owned_files is not the same as no contention:
     #    three endpoint tickets with different files all need routes/api.php, and
     #    nothing above would see it. Declared resources are checked by strategy.
     shared = cfg.get('shared_resources') or {}
     for name, spec in sorted(shared.items()):
         pats = spec.get('paths') or []
-        strategy = spec.get('strategy', 'serialise')
+        strategy = spec.get('strategy')
+        if strategy not in ('fragment', 'contract_only', 'serialise'):
+            E.append(f"shared resource {name} has invalid strategy {strategy}")
+            continue
         for t in tickets:
             hits = [f for f in t['owned_files']
                     if any(globs_intersect(f, p) for p in pats)]
@@ -239,7 +234,7 @@ def check(cfg, phase):
                          f"feature ticket changing it is already a contract violation.")
             if strategy == 'fragment':
                 frag = (spec.get('fragment') or '').replace('{module}', t['module'])
-                aggregate = [f for f in hits if not globs_intersect(f, frag)]
+                aggregate = [f for f in t['owned_files'] if declared and outside(f, [frag]) is not None and any(globs_intersect(f, path) for path in pats)]
                 if aggregate:
                     E.append(f"{t['id']} owns the aggregate {aggregate[0]} rather than its "
                              f"fragment. Own {frag} instead — the aggregate loads the "
@@ -266,7 +261,7 @@ def check(cfg, phase):
     def reaches_contract(tid, path=frozenset()):
         if tid in path: return False
         for d in by_id[tid]['depends_on']:
-            if d.startswith('C-') or reaches_contract(d, path | {tid}): return True
+            if d in by_id and (by_id[d]['kind'] == 'contract' or reaches_contract(d, path | {tid})): return True
         return False
     for t in tickets:
         if t['kind'] != 'contract' and not reaches_contract(t['id']):
@@ -290,6 +285,7 @@ def check(cfg, phase):
               if v.get('kind') == 'blocker' and not v.get('answered')}
     for t in tickets:
         for d in t['depends_on']:
+            if d not in by_id: continue
             miss = set(by_id[d]['blocked_on']) - set(t['blocked_on'])
             if miss: E.append(f"{t['id']} depends on blocked {d} but does not inherit {sorted(miss)}")
         unknown = set(t['blocked_on']) - open_q
@@ -300,7 +296,7 @@ def check(cfg, phase):
     #    Regenerate the deterministic artifacts from source and require them to match.
     #    If they differ, someone hand-edited a derived file - which means the next
     #    regeneration will silently discard their change.
-    if not cfg.get('skip_derived_check'):
+    if True:
         for f, why in derived_drift(cfg):
             E.append(f"derived artifact {f}: {why}. It is a view, not a source - "
                      f"change the source and regenerate.")
@@ -329,7 +325,7 @@ def check(cfg, phase):
                 E.append(f"{t['id']} has unknown layer '{lay}'"); continue
             owns = layers[lay].get('owns') or []
             for f in t['owned_files']:
-                if owns and not any(fnmatch.fnmatch(f, g) for g in owns):
+                if owns and outside(f, owns) is not None:
                     E.append(f"{t['id']} is layer '{lay}' but owns {f}, which is outside "
                              f"that layer. A ticket that spans layers is the coupling this "
                              f"separation exists to prevent.")
@@ -341,6 +337,7 @@ def check(cfg, phase):
                 def reaches_layer(tid, want, seen=frozenset()):
                     if tid in seen: return False
                     for d in by_id[tid]['depends_on']:
+                        if d not in by_id: continue
                         if by_id[d].get('layer') == want: return True
                         if reaches_layer(d, want, seen | {tid}): return True
                     return False
@@ -373,11 +370,11 @@ def check(cfg, phase):
     #    A ticket owning it would collide with every other api ticket in its wave -
     #    which is exactly the rule check 3 exists to enforce - and would make an agent
     #    responsible for remembering to document, which they do not reliably do.
-    contract_paths = [a for ph in (cfg.get('phases') or {}).values()
+    contract_paths = [cfg.get('api_contract', 'docs/openapi.yaml')] + [a for ph in (cfg.get('phases') or {}).values()
                       for a in (ph.get('gate_artifacts') or [])]
     for t in tickets:
         for f in t['owned_files']:
-            if f in contract_paths:
+            if any(globs_intersect(f, path) for path in contract_paths):
                 E.append(f"{t['id']} owns {f}, the generated API contract. No ticket may "
                          f"own it: CI generates it from the routes, so concurrent tickets "
                          f"in a wave never collide over it.")
@@ -401,7 +398,11 @@ def check(cfg, phase):
     return reqs, tickets, by_wave, owners, seen, E, W
 
 def main(cfg, phase, quiet=False):
-    reqs, tickets, by_wave, owners, seen, E, W = check(cfg, phase)
+    try:
+        reqs, tickets, by_wave, owners, seen, E, W = check(cfg, phase)
+    except (SystemExit, ValueError, KeyError, TypeError, OSError) as exc:
+        print(f'FAILED — phase {phase}: {exc}')
+        return 1
     covered = sum(1 for r in reqs if seen.get(r['id']))
     runnable = [t['id'] for t in tickets if not t['blocked_on']]
     blocked  = [t['id'] for t in tickets if t['blocked_on']]

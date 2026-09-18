@@ -12,7 +12,7 @@ from .common import out, read_json
 
 def git_commits_for(ticket, root='.'):
     try:
-        r = subprocess.run(['git', 'log', '--oneline', '--all', f'--grep={ticket}'],
+        r = subprocess.run(['git', 'log', '--oneline', '--all', '--extended-regexp', f'--grep=(^|[^A-Za-z0-9-]){re.escape(ticket)}([^A-Za-z0-9-]|$)'],
                            cwd=root, capture_output=True, text=True, timeout=10)
         return [l for l in r.stdout.splitlines() if l.strip()]
     except Exception:
@@ -72,6 +72,9 @@ def main(cfg, target):
         print()
         return 0
 
+    if re.fullmatch(r'[a-fA-F0-9]{7,40}', target):
+        result = subprocess.run(['git', 'show', '-s', '--format=%s', target], capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip() != target: return main(cfg, result.stdout.strip())
     m = re.search(r'\b([CTI]-\d{2,3}[a-z]?)\b', target)   # a commit message or sha
     if m: return main(cfg, m.group(1))
     print(f"  '{target}' is not a requirement id, a ticket id, or a string containing one")

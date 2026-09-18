@@ -4,47 +4,206 @@
   "title": "Ticket",
   "description": "One unit of autonomous agent work producing one pull request. The orchestrator interface.",
   "type": "object",
-  "required": ["id","title","module","kind","depends_on","owned_files","requirements",
-               "acceptance_tests","evidence","blocked_on","wave"],
+  "required": [
+    "id",
+    "title",
+    "module",
+    "kind",
+    "depends_on",
+    "owned_files",
+    "requirements",
+    "acceptance_tests",
+    "evidence",
+    "blocked_on",
+    "wave"
+  ],
   "additionalProperties": false,
   "properties": {
-    "id": {"type":"string","pattern":"^[CTI]-[0-9]{2,3}[a-z]?$",
-           "description":"C- contract, T- feature, I- integration journey"},
-    "title": {"type":"string","minLength":3},
-    "module": {"type":"string"},
-    "kind": {"enum":["contract","feature","integration"]},
-    "phase": {"type":"integer","minimum":0},
-    "wave": {"type":"integer","minimum":0,
-             "description":"DERIVED from the dependency graph. Never hand-assigned."},
-    "wave_hint": {"type":"integer","minimum":0,
-             "description":"Author's guess, kept only to measure drift."},
-    "depends_on": {"type":"array","items":{"type":"string"},"uniqueItems":true},
-    "owned_files": {"type":"array","items":{"type":"string"},"minItems":1,"uniqueItems":true,
-             "description":"Exclusive within a wave. Globs permitted."},
-    "requirements": {"type":"array","items":{"type":"string"},
-             "description":"Owned (feature tickets) or supported (contract tickets)."},
-    "asserts": {"type":"array","items":{"type":"string"},
-             "description":"Verified but not owned."},
-    "contracts_used": {"type":"array","items":{"type":"string"}},
-    "acceptance_tests": {"type":"array","items":{"type":"string"},"minItems":1,
-             "description":"One per EARS criterion. The definition of done."},
-    "evidence": {"type":"array","items":{"type":"string"},"minItems":1},
-    "blocked_on": {"type":"array","items":{"type":"string"},
-             "description":"Open-question IDs. Propagates along dependency edges."},
-    "notes": {"type":["string","null"]},
+    "id": {
+      "type": "string",
+      "pattern": "^[CTI]-[0-9]{2,3}[a-z]?$",
+      "description": "C- contract, T- feature, I- integration journey"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 3
+    },
+    "module": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "contract",
+        "feature",
+        "integration"
+      ]
+    },
+    "phase": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "wave": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "DERIVED from the dependency graph. Never hand-assigned."
+    },
+    "wave_hint": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Author's guess, kept only to measure drift."
+    },
+    "depends_on": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "owned_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "Exclusive within a wave. Globs permitted."
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Owned (feature tickets) or supported (contract tickets)."
+    },
+    "asserts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Verified but not owned."
+    },
+    "contracts_used": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "acceptance_tests": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "description": "One per EARS criterion. The definition of done."
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "blocked_on": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Open-question IDs. Propagates along dependency edges."
+    },
+    "notes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "telemetry": {
-      "type":"object",
-      "description":"Filled by the orchestrator during execution. Read by the retrospective.",
+      "type": "object",
+      "description": "Filled by the orchestrator during execution. Read by the retrospective.",
       "additionalProperties": false,
       "properties": {
-        "attempts": {"type":["integer","null"],"minimum":0},
-        "first_run_test_failures": {"type":["integer","null"],"minimum":0},
-        "contract_change_filed": {"type":["boolean","null"]},
-        "out_of_scope_files_touched": {"type":["array","null"],"items":{"type":"string"}},
-        "review_rounds": {"type":["integer","null"],"minimum":0},
-        "agent": {"type":["string","null"]},
-        "diff_lines": {"type":["integer","null"],"minimum":0}
+        "attempts": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "first_run_test_failures": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "contract_change_filed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "out_of_scope_files_touched": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "review_rounds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "agent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "diff_lines": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
       }
+    },
+    "layer": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "api",
+        "surface",
+        "coupled",
+        null
+      ]
+    },
+    "serves": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "touches": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "derived_by": {
+      "type": "string"
+    },
+    "contract_context": {
+      "type": "string"
     }
   }
 }

@@ -4,6 +4,7 @@
 # This is what keeps the API and web surfaces provably equivalent instead of
 # parallel-and-drifting, and it is what makes the layer split real rather than aspirational.
 set -uo pipefail
+command -v rg >/dev/null || { echo "ripgrep is required for this optional heuristic check"; exit 1; }
 fail=0
 say() { echo "  $*"; fail=1; }
 
@@ -12,17 +13,7 @@ while IFS=: read -r file line _; do
   say "business logic in a controller: $file:$line"
 done < <(rg -n --no-heading \
   -e '\b(DB::|->where\(|->save\(\)|->update\(|->delete\(\)|->create\(|Model::)' \
-  app/Http/Controllers 2>/dev/null)
-
-# An API controller must have a web counterpart, and vice versa.
-for f in $(find app/Http/Controllers/Api -name '*Controller.php' 2>/dev/null); do
-  base=$(basename "$f")
-  [ -f "app/Http/Controllers/Web/$base" ] || say "no web counterpart for Api/$base"
-done
-for f in $(find app/Http/Controllers/Web -name '*Controller.php' 2>/dev/null); do
-  base=$(basename "$f")
-  [ -f "app/Http/Controllers/Api/$base" ] || say "no api counterpart for Web/$base"
-done
+  app/Http/Controllers/Api 2>/dev/null)
 
 [ $fail -eq 0 ] && echo "  controllers: clean" || echo "  controllers: violations above"
 exit $fail

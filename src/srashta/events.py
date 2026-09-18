@@ -12,7 +12,7 @@ never compacted. Counts are DERIVED from it, never stored alongside it.
   srashta event T-08 tests_failed --data '{"tests":["single-use link"]}'
   srashta event T-08 merged --data '{"diff_lines": 240}'
 """
-import json, os, sys, time
+import json, os, sys, time, re, uuid
 from collections import defaultdict
 
 KINDS = {
@@ -28,25 +28,60 @@ KINDS = {
 }
 
 def path(cfg, phase):
-    p = os.path.join(cfg.get('events_dir', 'events'), f'phase-{phase}.jsonl')
+    p = os.path.join(cfg.get('events_dir', 'events'), f'phase-{int(phase)}.jsonl')
     os.makedirs(os.path.dirname(p), exist_ok=True)
     return p
 
-def append(cfg, phase, ticket, kind, data=None, agent=None):
+def append(cfg, phase, ticket, kind, data=None, agent=None, event_id=None):
     if kind not in KINDS:
         raise SystemExit(f"unknown event kind '{kind}'. one of: {', '.join(sorted(KINDS))}")
-    rec = {'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-           'ticket': ticket, 'kind': kind}
+    if not isinstance(ticket, str) or not re.fullmatch(r'[CTI]-[0-9]{2,3}[a-z]?', ticket):
+        raise ValueError('valid ticket ID required')
+    data = dict(data or {})
+    if cfg.get('artifact_version'):
+        from .common import read_json, out
+        records = read_json(out(cfg, f'tickets/phase-{int(phase)}.json'))
+        if ticket not in {t['id'] for t in records}: raise ValueError('unknown ticket for this phase')
+        if kind == 'brief_feedback' and not (type(data.get('sufficient')) is bool or data.get('sufficient') == 'partial'):
+            raise ValueError('brief_feedback needs sufficient: true, false, or "partial"')
+        if kind == 'merged':
+            record = next(t for t in records if t['id'] == ticket)
+            if record['kind'] in ('contract', 'integration') and not str(data.get('reviewed_by', '')).strip():
+                raise ValueError('contract/integration merges require reviewed_by')
+            from .execution import merge_evidence
+            data['evidence_sha256'] = merge_evidence(cfg, phase, ticket, data)
+    for field in ('tests', 'files'):
+        if field in data and (not isinstance(data[field], list) or not all(isinstance(x, str) for x in data[field])):
+            raise ValueError(f'{field} must be a string array')
+    rec = {'id': event_id or str(uuid.uuid4()), 'phase': int(phase),
+           'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+           'ticket': ticket, 'kind': kind, 'data': data}
     if agent: rec['agent'] = agent
-    if data:  rec['data'] = data
-    with open(path(cfg, phase), 'a') as f:
-        f.write(json.dumps(rec, sort_keys=True) + '\n')
+    # One locked read/check/append operation across processes. POSIX supported in v0.1.
+    import fcntl
+    with open(path(cfg, phase), 'a+') as stream:
+        fcntl.flock(stream, fcntl.LOCK_EX)
+        stream.seek(0)
+        previous = [json.loads(line) for line in stream if line.strip()]
+        for old in previous:
+            if old.get('id') == rec['id']:
+                if any(old.get(k) != rec.get(k) for k in ('phase', 'ticket', 'kind', 'data', 'agent')):
+                    raise ValueError('event id reused with different content')
+                return old
+        if cfg.get('artifact_version') and kind == 'merged':
+            feedback = [e for e in previous if e['ticket'] == ticket and e['kind'] == 'brief_feedback']
+            if not feedback: raise ValueError('record brief_feedback before merge')
+        stream.write(json.dumps(rec, sort_keys=True) + '\n')
+        stream.flush(); os.fsync(stream.fileno())
     return rec
 
 def read(cfg, phase):
     p = path(cfg, phase)
     if not os.path.exists(p): return []
-    return [json.loads(l) for l in open(p) if l.strip()]
+    import fcntl
+    with open(p) as stream:
+        fcntl.flock(stream, fcntl.LOCK_SH)
+        return [json.loads(l) for l in stream if l.strip()]
 
 def derive(events):
     """Counts are derived from history, never stored. This is the whole point."""
@@ -118,6 +153,6 @@ def main(cfg, args):
                 print(f"      {', '.join(tids)}: {g}{mark}")
         return 0
     rec = append(cfg, args.phase, args.ticket, args.kind,
-                 json.loads(args.data) if args.data else None, args.agent)
+                 json.loads(args.data) if args.data else None, args.agent, getattr(args, 'id', None))
     print(f"  recorded {rec['kind']} for {rec['ticket']}")
     return 0

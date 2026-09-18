@@ -14,14 +14,26 @@ import argparse, json, os, shutil, sys
 from .common import load_project, out, read_json, write_json
 
 def run(cfg, phase, repo=None, fmt='generic'):
+    from .packs import build
+    from .approvals import digest
+    from pathlib import Path
+    import tempfile
+    expected = build(cfg, phase)
+    source = Path(out(cfg, f'context-packs/phase-{phase}'))
+    actual = {p.name: p.read_text() for p in source.glob('*.md')}
+    if actual != expected:
+        raise ValueError(f'missing or stale briefs; run srashta packs {phase}')
     class a: pass
     a.phase, a.repo, a.format = phase, repo, fmt
     tickets = read_json(out(cfg, f'tickets/phase-{a.phase}.json'))
     phase = cfg['phases'].get(int(a.phase)) or cfg['phases'].get(str(a.phase)) or {}
-    d = out(cfg, f'handoff/phase-{a.phase}/x')[:-1]
-    os.makedirs(d, exist_ok=True)
+    destination = Path(out(cfg, f'handoff/phase-{a.phase}'))
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = tempfile.TemporaryDirectory(dir=destination.parent)
+    d = staging.name
 
     manifest = {
+        'schema_version': 2,
         'project': cfg['project'],
         'phase': int(a.phase),
         'phase_name': phase.get('name'),
@@ -30,9 +42,9 @@ def run(cfg, phase, repo=None, fmt='generic'):
         'ticket_count': len(tickets),
         'waves': sorted({t['wave'] for t in tickets}),
         'constitution': 'constitution.md',
-        'design_contract': 'DESIGN.md',
+        'design_contract': f'contracts/phase-{a.phase}.md',
         'config': cfg.get('defaults', 'config/defaults.yaml'),
-        'context_packs': f'context-packs/phase-{a.phase}/<TICKET_ID>.md',
+        'context_packs': 'packs/<TICKET_ID>.md',
         'blocked': {t['id']: t['blocked_on'] for t in tickets if t['blocked_on']},
         'conventions': {
             'branch': '<TICKET_ID>-<slug>',
@@ -50,7 +62,9 @@ def run(cfg, phase, repo=None, fmt='generic'):
         },
         'telemetry_required': ['attempts', 'first_run_test_failures', 'contract_change_filed',
                                'out_of_scope_files_touched', 'review_rounds', 'agent', 'diff_lines'],
-        'eligibility': 'python3 pipeline/eligible.py <phase> --state <state.json> --json',
+        'eligibility': f'srashta eligible {a.phase} --state <state.json> --json',
+        'pack_sha256': {name: digest(source / name) for name in sorted(expected)},
+        'isolation': 'The orchestrator must provide each worker only its brief and permitted application context; a Git worktree is not a sandbox.',
     }
     write_json(os.path.join(d, 'manifest.json'), manifest)
     write_json(os.path.join(d, 'tickets.json'), tickets)
@@ -71,7 +85,10 @@ def run(cfg, phase, repo=None, fmt='generic'):
                   "Done when every acceptance test in the brief passes.", ""]
             open(os.path.join(kd, f"{t['id']}.md"), 'w').write('\n'.join(fm))
 
-    print(f"  handoff -> {d}")
+    if destination.exists(): shutil.rmtree(destination)
+    shutil.copytree(d, destination)
+    staging.cleanup()
+    print(f'  handoff -> {destination}')
     print(f"    manifest.json   what this run is, and the rules of engagement")
     print(f"    tickets.json    {len(tickets)} tickets, {len(manifest['waves'])} waves")
     print(f"    packs/          one brief per ticket")

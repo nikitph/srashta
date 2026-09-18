@@ -29,7 +29,7 @@ def t(id, reqs=(), deps=(), files=None, touches=(), module='identity', **kw):
 def prep(cfg):
     extract.main(cfg); assign.main(cfg)
     os.makedirs('contracts', exist_ok=True)
-    open('contracts/phase-0.md','w').write('c'); open('contracts/phase-0.approved','w').write('')
+    open('contracts/phase-0.md','w').write('c'); __import__('srashta.approvals', fromlist=['approve']).approve(cfg, 0, 'test reviewer')
     cfg['shared_resources'] = SHARED
 
 def write(cfg, ts):

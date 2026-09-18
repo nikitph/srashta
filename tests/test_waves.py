@@ -21,12 +21,12 @@ def test_longest_path_not_shortest():
 
 def test_cycle_is_fatal():
     with pytest.raises(SystemExit) as e:
-        finalise([t('A', ['B']), t('B', ['A'])])
+        finalise([t('T-01', ['T-02']), t('T-02', ['T-01'])])
     assert 'cycle' in str(e.value)
 
 def test_unknown_dependency_is_fatal():
     with pytest.raises(SystemExit) as e:
-        finalise([t('A', ['NOPE'])])
+        finalise([t('T-01', ['NOPE'])])
     assert 'unknown ticket' in str(e.value)
 
 def test_blockers_propagate_down_the_graph():

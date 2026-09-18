@@ -14,7 +14,7 @@ ALL = ['FR-ACC-001','FR-ACC-002','FR-ACC-003','FR-ACC-004',
 def build(cfg):
     extract.main(cfg); assign.main(cfg)
     os.makedirs('contracts', exist_ok=True)
-    open('contracts/phase-0.md','w').write('c'); open('contracts/phase-0.approved','w').write('')
+    open('contracts/phase-0.md','w').write('c'); __import__('srashta.approvals', fromlist=['approve']).approve(cfg, 0, 'test reviewer')
     ts, _, _ = finalise([
         dict(id='C-01', title='c', module='identity', depends_on=[], owned_files=['app/c.php'],
              requirements=ALL, asserts=[], acceptance_tests=['x'], evidence=['y'],

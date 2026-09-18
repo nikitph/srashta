@@ -29,7 +29,7 @@ def prep(cfg):
     extract.main(cfg); assign.main(cfg)
     os.makedirs('contracts', exist_ok=True)
     open('contracts/phase-0.md','w').write('contract design')
-    open('contracts/phase-0.approved','w').write('')      # gate satisfied by default
+    __import__('srashta.approvals', fromlist=['approve']).approve(cfg, 0, 'test reviewer')      # gate satisfied by default
 
 # ---- 1. glob vs glob -------------------------------------------------------
 
@@ -124,7 +124,7 @@ def test_packs_are_refused_without_an_approved_contract(cfg, capsys):
     prep(cfg)
     os.remove('contracts/phase-0.approved')
     write([t('C-01', ALL), t('T-01', ALL, ['C-01'])])
-    with pytest.raises(SystemExit):
+    with pytest.raises(ValueError):
         packs.main(cfg, 0)
 
 # ---- 7. derived waves ------------------------------------------------------

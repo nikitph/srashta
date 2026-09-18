@@ -3,7 +3,7 @@
 Version 0.1 · Draft · <date> · Owner: <name>
 
 > Delete this block before circulating.
-> Conformance is checked by `pipeline/lint_spec.py`. Rationale and context stay in prose —
+> Conformance is checked by `srashta lint`. Rationale and context stay in prose —
 > the spec has human readers whose job is to notice a *wrong* requirement, which no linter does.
 > Only acceptance criteria are constrained.
 

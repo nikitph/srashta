@@ -13,16 +13,21 @@ import argparse, json, os, sys
 from collections import defaultdict
 from .common import load_project, out, read_json
 
-DONE = {'merged', 'done', 'completed'}
-BUSY = {'in_progress', 'claimed', 'review'}
+DONE = {'merged'}
+BUSY = {'in_progress', 'claimed', 'review', 'in_review'}
 
 def eligible(tickets, state):
     by_id = {t['id']: t for t in tickets}
+    unknown = set(state) - set(by_id)
+    invalid = set(state.values()) - (DONE | BUSY | {'todo', 'blocked', 'failed'})
+    if unknown or invalid: raise ValueError(f'invalid execution state: tickets={sorted(unknown)}, statuses={sorted(invalid)}')
     done = {k for k, v in state.items() if v in DONE}
     busy = {k for k, v in state.items() if v in BUSY}
     claimable, held = [], []
     for t in tickets:
-        if t['id'] in done or t['id'] in busy: continue
+        if t['id'] in done: continue
+        if t['id'] in busy:
+            held.append((t['id'], state[t['id']])); continue
         if t['blocked_on']:
             held.append((t['id'], f"blocked on {', '.join(t['blocked_on'])}")); continue
         missing = [d for d in t['depends_on'] if d not in done]
@@ -47,10 +52,24 @@ def eligible(tickets, state):
     return now, [t for t in claimable if t['wave'] != lowest], held
 
 def run(cfg, phase, state_path=None, as_json=False):
+    from .validate import check
+    *_, errors, _ = check(cfg, phase)
+    if errors: raise ValueError('\n'.join(errors))
     class a: pass
     a.phase, a.state, a.json = phase, state_path, as_json
     tickets = read_json(out(cfg, f'tickets/phase-{a.phase}.json'))
-    state = json.load(open(a.state)) if a.state and os.path.exists(a.state) else {}
+    path = a.state or f'state/phase-{int(phase)}.json'
+    state = json.load(open(path)) if os.path.exists(path) else {}
+    if cfg.get('artifact_version'):
+        from . import events
+        from .execution import merge_evidence
+        merged = {e['ticket']: e for e in events.read(cfg,phase) if e['kind'] == 'merged'}
+        for tid, event in merged.items():
+            if merge_evidence(cfg,phase,tid,event.get('data',{})) != event['data'].get('evidence_sha256'):
+                raise ValueError(f'{tid} merge evidence changed')
+        unverified = {tid for tid, status in state.items() if status == 'merged'} - set(merged)
+        if unverified: raise ValueError(f'merged state lacks verified events: {sorted(unverified)}')
+        state.update({tid: 'merged' for tid in merged})
     now, later, held = eligible(tickets, state)
     if a.json:
         print(json.dumps({'claimable_now': [t['id'] for t in now],

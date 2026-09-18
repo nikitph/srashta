@@ -3,18 +3,66 @@
   "$id": "https://foundry.local/schemas/requirement.schema.json",
   "title": "Requirement",
   "type": "object",
-  "required": ["id","text","priority"],
+  "required": [
+    "id",
+    "text",
+    "priority"
+  ],
   "properties": {
-    "id": {"type":"string"},
-    "text": {"type":"string","minLength":1},
-    "priority": {"type":["string","null"]},
-    "section": {"type":["string","null"]},
-    "line": {"type":["integer","null"]},
-    "criteria": {"type":"array","items":{"type":"string"},
-                 "description":"EARS acceptance criteria, one per test."},
-    "domain": {"type":["string","null"]},
-    "module": {"type":["string","null"]},
-    "phase": {"type":["integer","null"]},
-    "phase_reason": {"type":["string","null"]}
+    "id": {
+      "type": "string"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "priority": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "section": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "line": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "domain": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "module": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "phase": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "phase_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
   }
 }

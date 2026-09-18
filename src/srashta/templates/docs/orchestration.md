@@ -92,7 +92,7 @@ pack as the body. Re-runnable: match on ticket id and update rather than duplica
 holds only status.
 
 Either way the importer is the *only* Multica-specific code in the system, and it lives in
-`adapters/multica/`, never in `pipeline/`.
+`adapters/multica/`, never in the `srashta` Python package.
 
 ## Using a different orchestrator, or none
 

@@ -27,7 +27,7 @@ def good():
 def prep(cfg):
     extract.main(cfg); assign.main(cfg)
     os.makedirs('contracts', exist_ok=True)
-    open('contracts/phase-0.md','w').write('c'); open('contracts/phase-0.approved','w').write('')
+    open('contracts/phase-0.md','w').write('c'); __import__('srashta.approvals', fromlist=['approve']).approve(cfg, 0, 'test reviewer')
 
 def test_a_sound_graph_passes(cfg, capsys):
     prep(cfg); mk(None, good())

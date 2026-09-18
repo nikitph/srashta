@@ -1,133 +1,21 @@
-# Lifecycle — who does what, where
+# Srashta procedure — idea to API
 
-The gap this document closes: everything upstream produced artifacts, but nothing said where they
-live, who creates the repo, or how a fresh session knows what has already happened.
+The Python CLI handles consistency and evidence. A planning agent authors judgment; a human approves contract design; an external orchestrator runs workers and merges reviewed work. Version 0.1 ends at backend/API freeze.
 
-## The missing actor: the repo
+1. Shape the idea into actors, journeys, scope and explicit non-goals. Author stable requirement identifiers and EARS acceptance criteria in `spec/`. Configure modules, phases, defaults, questions and concrete `verification_commands` in `project.yaml`.
+2. Run `srashta run`. Resolve parser, lint, assignment and module-boundary problems. Module analysis is a planning aid, not an authoritative decomposition.
+3. At the start of one phase, write `contracts/phase-N.md`: schemas, interfaces, state machines, event payloads, action boundaries and test doubles. Resolve blockers gating that phase. A human reviews the design and records `srashta approve N --by NAME`. A changed design requires new approval.
+4. Author **`tickets/phase-N.json`**. Include dependencies, exclusive owned paths, acceptance tests, evidence, layer and relevant journey steps. Each contract ticket includes a bounded `contract_context` copied exactly from the approved design. Every requirement has one feature owner; contract tickets support requirements and integration tickets assert them.
+5. Run `srashta waves N`, `srashta validate N`, `srashta packs N`, `srashta export N`. Waves are derived, not assigned. Shared resources use fragments, contract-only ownership, or explicit serialization edges. Commit source and derived graph before execution.
+6. The orchestrator uses `srashta eligible N --json`; external claims belong in `state/phase-N.json`. Only verified merge events count as completion. A lower unfinished wave blocks the next wave. The orchestrator provides one `srashta worker N TICKET --dest NEW_DIRECTORY` export inside a real sandbox. Workers receive their brief plus application context, never the specification, other briefs, or Git history. The worker returns a patch and evidence. Missing context is repaired by planning; workers do not query memory or the PRD.
+7. Integrate each ticket on a branch named `TICKET-description`. Run `srashta verify N TICKET --base BASE_COMMIT` on committed code. This checks ownership against the base graph, protected/frozen paths, commit traceability and configured test commands. Record `brief_feedback`, then a `merged` event with the verified `head`; contract and integration tickets also record `reviewed_by`. Remote approval and merge checks remain the orchestrator's job. Preserve `events/` and `evidence/` in Git.
+8. Write the phase retrospective. Apply learning deliberately to project guides; `skills --full` shows differences and `--sync` protects edits. `srashta close N --by NAME` requires verified evidence, brief feedback, a retrospective and passing checks. Commit its receipt. Only then begin the next phase.
+9. Generate the API continuously with `srashta api generate`; the operator/orchestrator publishes the reviewed generated artifact. After all backend phases close, run `srashta api freeze --by NAME`. CI uses `srashta api check --base BASE_COMMIT` to compare against the trusted base freeze. A reviewed contract change is a separate planning change; never remove the freeze within a feature ticket.
 
-**The project repo is the handoff medium.** Not a chat, not a zip, not a session container.
+## Durable and derived
 
-A planning session is ephemeral — a new one starts with no memory of the last. An orchestrator runs
-on a different machine on a different day. A human comes back after a week. All three need the same
-answer to "where are we?", and only a repo can give it.
+Durable: specification, config, contract design/approval, authored tickets, guides, execution events, verification evidence and retrospective/closure receipts. Derived: requirements indexes, normalized tickets, briefs, handoff bundles and generated OpenAPI. No generated view can recover a lost planning decision or historical test run.
 
-So: spec, brand, contracts, tickets, briefs, config, execution state and retrospectives all live in
-git. Every actor reads the repo. Nobody reads a conversation.
+Approval, review and closure receipts record assertions and hashes; they do not authenticate human identity. Repository permissions, protected branches and the orchestrator establish authority. Filesystem isolation is also an orchestrator responsibility. The CLI does not deploy, invoke a model or certify semantic completeness from prose.
 
-```bash
-python3 pipeline/status.py
-```
-
-prints what is done, what is next, and **whose turn it is**. That is the session-continuity
-interface. Run it first, always.
-
-## The three actors
-
-| Actor | Is | Does | Reads | Writes |
-|---|---|---|---|---|
-| **Planning session** | a chat with an agent | spec, brand, contracts, decomposition, retrospective | the repo | the repo |
-| **Orchestrator** | Multica, Symphony, a loop | claims tickets, spawns workers, watches CI, merges | `build/handoff/phase-N/` | `state.json`, telemetry, code |
-| **You** | you | answer blockers, approve contracts, review design and journeys | whatever you like | approval markers |
-
-Workers sit under the orchestrator and see one brief each. They are not an actor at this level.
-
-## Bootstrap — resolving the circularity
-
-Contracts are built by wave-0 tickets → which need an orchestrator → which needs a repo with a
-working stack. That is circular unless someone breaks it, so **`pipeline/init.py` breaks it**:
-
-```bash
-python3 pipeline/init.py acme --dest ../acme
-```
-
-creates the repo, copies the pipeline and constitution, scaffolds the stack, and makes the first
-commit. This runs **once**, before any ticket exists. Everything after it is ordinary.
-
-## The sequence
-
-Each numbered item is one sitting. Between any two, everything is on disk.
-
-**1 · Init and shape** — *planning session*
-You describe the idea. The session runs `init.py`, pushes the repo, and works the idea into a
-problem statement, actors, journeys and non-goals.
-→ repo exists, `spec/` has a draft.
-
-**2 · Spec** — *planning session, possibly several*
-`/spec-authoring`. Ends when `lint_spec.py` passes structurally.
-→ `spec/product-prd.md` committed. **You read it** — a linter finds an inconsistent spec, never a
-wrong one.
-
-**3 · Brand** — *planning session, forks off partway through 2*
-`/brand-identity`. Three or four decisions from you.
-→ `brand.yaml` committed.
-
-**4 · Readiness** — *planning session*
-`/spec-readiness`. Parses, audits, derives modules, assigns phases.
-→ `build/requirements.assigned.json`, `config/defaults.yaml`, blockers recorded in
-`project.yaml`.
-→ **YOUR TURN**: answer only the blockers gating phase 0. Set `answered: true`.
-
-**5 · Phase 0 contracts** — *planning session*
-`/phase-decomposition` step 4. Includes writing the state machines the spec omitted.
-→ `contracts/phase-0.md`.
-→ **YOUR TURN**: read it, then `touch contracts/phase-0.approved`. That file *is* the gate — a
-marker in the repo, not an approval in a chat, so a later session can see it happened.
-
-**6 · Design system** — *planning session*
-`/design-system-bootstrap`. Produces tokens, patterns, `DESIGN.md`, CI checks, the `/_design`
-evidence page, registered as contract `C-00`.
-→ **YOUR TURN**: look at two screenshots.
-
-**7 · Tickets** — *planning session*
-`/phase-decomposition` step 6, then `export.py 0`.
-→ `build/handoff/phase-0/` — manifest, tickets, briefs. **This is the handoff artifact.**
-
-**8 · Execution** — *orchestrator*
-Imports the handoff, or polls `eligible.py`. Claims, spawns, merges, writes `state.json` and
-telemetry.
-→ **YOUR TURN** at contract PRs, integration PRs, and the first couple of built screens.
-
-**9 · Exit gate and retrospective** — *planning session*
-Integration journeys green → `/build-retrospective` reads the telemetry.
-→ `retrospectives/phase-0.md`, and corrections split three ways.
-
-**10 · Next phase** — back to step 5 with the corrections applied.
-
-## The handoff moment, precisely
-
-Step 7 → 8. One directory, committed and pushed:
-
-```
-build/handoff/phase-0/
-  manifest.json    repo, phase, exit gate, conventions, routing, telemetry required
-  tickets.json     the graph
-  packs/<ID>.md    one brief per ticket
-```
-
-The planning session's last act is to push it and say so. The orchestrator's first act is to read
-`manifest.json`. Nothing else crosses.
-
-## Coming back cold
-
-A new planning session, weeks later, with no memory: clone or pull, run `status.py`, and it says
-what to do and which skill to invoke. That is the whole onboarding.
-
-The same is true for you, and for a second person, and for a different agent.
-
-## Where each human gate physically happens
-
-| Gate | Where | Recorded as |
-|---|---|---|
-| Blocker answers | the chat | `answered: true` in `project.yaml` |
-| Contract approval | reading `contracts/phase-N.md` | `contracts/phase-N.approved` |
-| Design review | two screenshots in the chat | merged `C-00` PR |
-| Contract and integration PRs | your git host | merge |
-| Phase exit | integration journeys green | `retrospectives/phase-N.md` |
-
-Every one leaves a mark in the repo. A gate that only happened in a conversation did not happen.
-
-## If a planning session cannot reach the repo
-
-It works in a container and hands you a patch or a zip; you commit. Slower and easier to lose, so
-prefer giving the session push access. The method does not change either way — the repo is still
-the state.
+Run `srashta bootstrap` after each clone to enable local hooks. CI trace checks are the fallback for commits created without hooks. Transition-test templates require their adapter to be connected to the real action; generating test text alone is not verification.

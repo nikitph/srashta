@@ -67,6 +67,7 @@ def _serialise_edges(tickets, shared):
 
 
 def finalise(tickets, shared=None):
+    validate_records(tickets)
     by_id = {t['id']: t for t in tickets}
     for t in tickets:
         t.setdefault('kind', KIND.get(t['id'][0], 'feature'))
@@ -115,6 +116,17 @@ def finalise(tickets, shared=None):
             if new != t['blocked_on']:
                 t['blocked_on'] = new; changed = True
 
+    def contracts(tid, visited=None):
+        visited = set() if visited is None else visited
+        if tid in visited: return set()
+        visited.add(tid)
+        result = set()
+        for dependency in by_id[tid]['depends_on']:
+            if by_id[dependency]['kind'] == 'contract': result.add(dependency)
+            result.update(contracts(dependency, visited))
+        return result
+    for ticket in tickets:
+        ticket['contracts_used'] = sorted(contracts(ticket['id']))
     tickets.sort(key=lambda x: (x['wave'], x['id']))
     drift = [(t['id'], t['wave_hint'], t['wave'])
              for t in tickets if t['wave_hint'] is not None and t['wave_hint'] != t['wave']]
@@ -135,14 +147,19 @@ def main(cfg, phase):
     import json
     from .common import out
     p = out(cfg, f'tickets/phase-{phase}.json')
-    if not os.path.exists(p):
-        raise SystemExit(f"ERROR: {p} does not exist. Author the ticket graph first — "
-                         f"ids, titles, modules, requirements, dependencies, owned files, "
-                         f"acceptance tests — and this derives the rest.")
-    tickets = json.load(open(p))
-    n_before = len(tickets)
-    tickets, drift, added = finalise(tickets, shared=cfg.get('shared_resources'))
-    json.dump(tickets, open(p, 'w'), indent=1)
+    if cfg.get('artifact_version'):
+        from .tickets import write
+        tickets, drift, added = write(cfg, phase)
+        n_before = len(tickets)
+    else:
+        # Programmatic 0.1.x compatibility. The CLI upgrade preserves these as source.
+        if not os.path.exists(p):
+            raise SystemExit(f'ERROR: {p} does not exist; author tickets first')
+        tickets = json.load(open(p))
+        n_before = len(tickets)
+        tickets, drift, added = finalise(tickets, shared=cfg.get('shared_resources'))
+        from .common import write_json
+        write_json(p, tickets)
 
     waves = {}
     for t in tickets: waves.setdefault(t['wave'], []).append(t['id'])
@@ -165,3 +182,30 @@ def main(cfg, phase):
         print(f"  A hint is a hint. The dependencies are what run.")
     print(f"\n  next: srashta packs {phase} && srashta validate {phase}")
     return 0
+
+
+def validate_records(tickets):
+    import re
+    from .paths import validate_pattern
+    if not isinstance(tickets, list) or not tickets:
+        raise SystemExit('ERROR: ticket graph must be a nonempty array')
+    seen = set()
+    for ticket in tickets:
+        if not isinstance(ticket, dict): raise SystemExit('ERROR: ticket must be an object')
+        tid = ticket.get('id')
+        if not isinstance(tid, str) or not re.fullmatch(r'[CTI]-[0-9]{2,3}[a-z]?', tid):
+            raise SystemExit(f'ERROR: invalid ticket id {tid!r}')
+        if tid in seen: raise SystemExit(f'ERROR: duplicate ticket id {tid}')
+        seen.add(tid)
+        for key in ('title', 'module'):
+            if not isinstance(ticket.get(key), str) or not ticket[key].strip():
+                raise SystemExit(f'ERROR: {tid}: {key} must be nonempty text')
+        for key in ('depends_on', 'owned_files', 'requirements', 'acceptance_tests', 'evidence'):
+            if not isinstance(ticket.get(key), list) or any(not isinstance(x, str) or not x.strip() for x in ticket[key]):
+                raise SystemExit(f'ERROR: {tid}: {key} must be an array of nonempty strings')
+        for pattern in ticket['owned_files']: validate_pattern(pattern)
+        for key in ('blocked_on', 'asserts', 'touches', 'serves'):
+            if key in ticket and (not isinstance(ticket[key], list) or any(not isinstance(x, str) for x in ticket[key])):
+                raise SystemExit(f'ERROR: {tid}: invalid {key}')
+        if ticket.get('kind', KIND[tid[0]]) != KIND[tid[0]]:
+            raise SystemExit(f'ERROR: {tid}: kind disagrees with identifier')

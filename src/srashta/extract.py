@@ -1,97 +1,96 @@
-#!/usr/bin/env python3
-"""Step 3a - parse a spec into requirements.json.
+"""Parse both the published Markdown/EARS format and legacy text specifications."""
+import re
+from collections import Counter, defaultdict
+from .common import domain_of, out, write_json, die
 
-Handles the layout traps that silently drop requirements:
-  - domain segments of any length (a 3-letter assumption drops whole domains)
-  - a bare identifier on its own line is a CROSS-REFERENCE, not a new row
-  - priority may follow on its own line or sit inline at the end of the text
-Asserts every identifier mentioned anywhere in the document was parsed.
-"""
-import re, sys
-from collections import defaultdict
-from .common import load_project, domain_of, out, write_json, die
 
 def main(cfg):
     sc = cfg['spec']
     text = open(sc['path'], encoding='utf-8').read()
-    lines = text.split('\n')
-    id_re   = re.compile(rf"^({sc['id_pattern']})\s*(.*)$")
-    pri_re  = re.compile(rf"^({sc['priority_pattern']})\s*$")
-    pri_in  = re.compile(rf"\s({sc['priority_pattern']})\b")
-    foot    = re.compile(sc['footer_pattern']) if sc.get('footer_pattern') else None
-    head    = re.compile(sc['header_pattern']) if sc.get('header_pattern') else None
-    sec_re  = re.compile(r'^(\d+(?:\.\d+)*)\s+(.{3,80}?)\s{2,}') if False else None
-
-    reqs, order, cur, section = {}, [], None, None
-    for i, raw in enumerate(lines):
+    ident = re.compile(rf"^({sc['id_pattern']})(?=\s|$)\s*(.*)$")
+    priority = sc.get('priority_pattern', 'P0|P1|P2')
+    pri_line = re.compile(rf'^\[?({priority})\]?$')
+    pri_inline = re.compile(rf'(?:^|\s)\[?({priority})\]?(?=\s|$)')
+    footer = re.compile(sc['footer_pattern']) if sc.get('footer_pattern') else None
+    header = re.compile(sc['header_pattern']) if sc.get('header_pattern') else None
+    rows, current, section = {}, None, 'text'
+    for index, raw in enumerate(text.splitlines()):
         line = raw.strip()
-        if not line: continue
-        if foot and foot.search(line): continue
-        if head and head.search(line):
-            m = re.match(r'^(\d+(?:\.\d+)*)\s+(.+?)\s+' + sc['header_pattern'], line)
-            if m: section = f"{m.group(1)} {m.group(2)}"
+        if index < sc.get('body_start_line', 0) or not line:
             continue
-        m = id_re.match(line)
-        if m and i >= sc['body_start_line']:
-            rid, rest = m.group(1), m.group(2).strip()
-            if len(rest) <= 1:                      # bare cross-reference
-                if cur: reqs[cur]['text'] += ' ' + line
+        if (footer and footer.search(line)) or (header and header.search(line)):
+            continue
+        candidate = re.sub(r'^#{1,6}\s+', '', line)
+        candidate = re.sub(r'\*\*([^*]+)\*\*', r'\1', candidate)
+        match = ident.match(candidate)
+        if match and current and raw[:1].isspace() and not pri_inline.search(match.group(2)):
+            match = None  # An indented cross-reference in criteria/rationale is not a declaration.
+        if match:
+            rid, body = match.groups()
+            if not body.strip():
+                if current and section == 'text': current['text'] += ' ' + rid
                 continue
-            cur = rid
-            if rid not in reqs:
-                reqs[rid] = dict(id=rid, text=rest, priority=None,
-                                 section=section, line=i + 1)
-                order.append(rid)
+            if rid in rows:
+                die(f'duplicate requirement declaration {rid} at line {index + 1}')
+            pm = pri_inline.search(body)
+            current = dict(id=rid, text=(body[:pm.start()] + body[pm.end():]).strip() if pm else body,
+                           priority=pm.group(1) if pm else None, criteria=[],
+                           section=None, line=index + 1, domain=domain_of(rid))
+            rows[rid], section = current, 'text'
+            continue
+        if current and candidate.strip('*: ').lower() == 'acceptance criteria':
+            section = 'criteria'
+            continue
+        if line.startswith('```') or line.startswith('#') or line == '---':
+            current = None
+            continue
+        if not current:
+            continue
+        pm = pri_line.fullmatch(line)
+        if pm:
+            current['priority'] = pm.group(1)
+            current = None  # legacy priority is a record terminator
+            continue
+        label = line.strip('*: ').lower()
+        if label == 'acceptance criteria':
+            section = 'criteria'
+            continue
+        if label in ('rationale', 'conformance') or label.startswith('rationale:'):
+            section = 'rationale'
+            continue
+        line = re.sub(r'^(?:[-*]|\d+[.)])\s+', '', line)
+        if re.match(r'^(WHEN|WHILE|WHERE|IF|THE SYSTEM SHALL)\b', line): section = 'criteria'
+        if section == 'text':
+            current['text'] += ' ' + line
+        elif section == 'criteria':
+            criteria = current['criteria']
+            starts = re.match(r'^(WHEN|WHILE|WHERE|IF)\b', line)
+            independent = line.startswith('THE SYSTEM SHALL') and criteria and 'THE SYSTEM SHALL' in criteria[-1]
+            if not criteria or starts or independent:
+                criteria.append(line)
             else:
-                cur = None                          # duplicate mention elsewhere
-            continue
-        if pri_re.match(line) and cur:
-            if reqs[cur]['priority'] is None: reqs[cur]['priority'] = line
-            cur = None
-            continue
-        if cur: reqs[cur]['text'] += ' ' + line
-
-    res = []
-    for rid in order:
-        r = reqs[rid]
-        r['text'] = re.sub(r'\s+', ' ', r['text']).strip()
-        if r['priority'] is None:                   # priority inline at end of text
-            m = pri_in.search(r['text'])
-            if m:
-                r['priority'] = m.group(1); r['text'] = r['text'][:m.start()].strip()
-        r['domain'] = domain_of(rid)
-        res.append(r)
-
-    parsed_ids = {r['id'] for r in res}
-
-    # Completeness, part one: everything the CONFIGURED pattern matches was parsed.
-    mentioned = set(re.findall(rf"\b(?:{sc['id_pattern']})\b", text))
-    missing = sorted(mentioned - parsed_ids)
+                criteria[-1] += ' ' + line
+    result = list(rows.values())
+    for row in result:
+        row['text'] = re.sub(r'\s+', ' ', row['text']).strip()
+    if not result:
+        die('no requirement declarations parsed; check specification path and identifier pattern')
+    # Completeness, part one: do not count only successful declarations.
+    mentioned = {m.group(0) for m in re.finditer(rf"\b(?:{sc['id_pattern']})\b", text)}
+    missing = sorted(mentioned - rows.keys())
     if missing:
-        die(f"{len(missing)} identifiers are mentioned but were not parsed as rows: "
-            f"{missing[:20]}. The parser is wrong - fix it before continuing.")
-
-    # Completeness, part two: a pattern cannot validate itself. Scan with a GENERIC
-    # identifier shape and flag any family the configured pattern does not cover.
-    # This is the bug that silently drops a whole domain when the pattern assumes,
-    # say, a three-letter segment and the spec has a five-letter one.
-    GENERIC = r'\b[A-Z]{2,6}(?:-[A-Z]{2,6})?-\d{3}\b'
+        die(f'identifiers mentioned but not parsed as rows: {missing}')
+    # A pattern cannot validate itself: independently discover identifier families.
     families = defaultdict(set)
-    for tok in re.findall(GENERIC, text):
-        families[tok.rsplit('-', 1)[0]].add(tok)
-    uncovered = {fam: toks for fam, toks in families.items()
-                 if len(toks) >= 3 and not any(t in parsed_ids for t in toks)}
+    for token in re.findall(r'\b[A-Z]+(?:-[A-Z]+)?-\d{3}\b', text):
+        families[token.rsplit('-', 1)[0]].add(token)
+    uncovered = [family for family, ids in families.items()
+                 if len(ids) >= 3 and not all(re.fullmatch(sc['id_pattern'], token) for token in ids)]
     if uncovered:
-        die("identifier families found in the spec that your id_pattern does not match: "
-            + ', '.join(f"{fam} ({len(t)})" for fam, t in sorted(uncovered.items()))
-            + f". Current pattern: {sc['id_pattern']}. Widen it in project.yaml - a "
-              "pattern cannot validate itself, and a narrow one drops a whole domain.")
-
-    p = out(cfg, 'requirements.json'); write_json(p, res)
-    from collections import Counter
-    print(f"parsed {len(res)} requirements -> {p}")
-    print(f"  priority: {dict(Counter(r['priority'] for r in res))}")
-    print(f"  domains : {len(set(r['domain'] for r in res))}")
-    print(f"  completeness: every one of {len(mentioned)} mentioned identifiers accounted for")
-    return res
-
+        die(f'identifier families your id_pattern does not match: {sorted(uncovered)}')
+    path = out(cfg, 'requirements.json')
+    write_json(path, result)
+    print(f'parsed {len(result)} requirements -> {path}')
+    print(f"  priority: {dict(Counter(r['priority'] for r in result))}")
+    print(f'  completeness: every one of {len(mentioned)} mentioned identifiers accounted for')
+    return result

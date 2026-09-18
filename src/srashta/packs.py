@@ -79,7 +79,9 @@ def render(t, reqs, cfg, constitution, glossary, defaults, by_id, history=None):
         L += ['', '## Requirements this ticket VERIFIES but does not own', '']
         for r in t['asserts']:
             rq = reqs.get(r)
-            if rq: L.append(f"- **{r}** [{rq['priority']}] {rq['text']}")
+            if rq:
+                L.append(f"- **{r}** [{rq['priority']}] {rq['text']}")
+                L.extend(f'    - {c}' for c in rq.get('criteria', []))
     doms = sorted({reqs[r]['domain'] for r in ids if r in reqs})
     gl = [f"- {d}: {glossary[d]}" for d in doms if d in glossary]
     if gl: L += ['', '## Domain rules that apply here', ''] + gl
@@ -87,7 +89,9 @@ def render(t, reqs, cfg, constitution, glossary, defaults, by_id, history=None):
     if t['contracts_used']:
         for c in t['contracts_used']:
             ct = by_id.get(c)
-            if ct: L.append(f"- `{c}` {ct['title']} — files: {', '.join(ct['owned_files'])}")
+            if ct:
+                L.append(f"- `{c}` {ct['title']} — files: {', '.join(ct['owned_files'])}")
+                L.append(ct.get('contract_context', ''))
         L += ['', 'If you need a contract change, STOP and file a contract-change ticket. '
               'Never alter a frozen contract from a feature ticket.']
     else:
@@ -162,40 +166,45 @@ def render(t, reqs, cfg, constitution, glossary, defaults, by_id, history=None):
           'Most of the time you will not need this — say what you inferred in the evidence '
           'above and carry on. Use this only when the ticket genuinely cannot proceed:', '',
           f"```bash\nsrashta event {t['id']} pack_insufficient "
-          f"--data '{{\"needed\": \"…\"}}'\n```", '',
+          f"--phase {cfg.get('_phase', 0)} --data '{{\"needed\": \"…\"}}'\n```", '',
+          'If running in an isolated worker export, return this event request to the orchestrator; '
+          'the orchestrator records it in the authoritative repository.', '',
           'A brief that was missing something is a defect in the decomposition, not in '
           'you. Saying so is how it gets fixed — and if several tickets need the same '
           'thing, it goes into the template rather than being looked up each time.']
+    if t.get('contract_context'):
+        L += ['', '## Contract interface and constraints', '', t['contract_context']]
     if t.get('notes'): L += ['', '## Note', '', t['notes']]
     return '\n'.join(L) + '\n'
 
-def main(cfg, phase):
-    from .validate import approval_marker
-    gate = approval_marker(cfg, phase)
-    if gate:
-        raise SystemExit(f"ERROR: {gate}")
+def build(cfg, phase):
+    from .validate import check
+    *_, errors, warnings = check(cfg, phase)
+    if errors: raise ValueError('\n'.join(errors))
     reqs = {r['id']: r for r in read_json(out(cfg, 'requirements.assigned.json'))}
     tickets = read_json(out(cfg, f'tickets/phase-{phase}.json'))
     by_id = {t['id']: t for t in tickets}
     constitution = open(cfg.get('constitution', 'constitution.md')).read()
-    glossary = cfg.get('glossary', {})
     dpath = cfg.get('defaults', 'config/defaults.yaml')
     defaults = yaml.safe_load(open(dpath)) if os.path.exists(dpath) else {}
-    d = out(cfg, f'context-packs/phase-{phase}'); os.makedirs(d, exist_ok=True)
-    sizes = []
-    carried = 0
-    for t in tickets:
-        hist = prior_attempts(cfg, phase, t['id'])
-        if hist: carried += 1
-        body = render(t, reqs, cfg, constitution, glossary, defaults, by_id, hist)
-        open(os.path.join(d, f"{t['id']}.md"), 'w').write(body)
-        sizes.append(len(body))
-    spec = os.path.getsize(cfg['spec']['path'])
-    mean = sum(sizes) // len(sizes)
-    print(f"{len(sizes)} context packs -> {d}")
-    print(f"  mean {mean} chars (~{mean//4} tokens), max {max(sizes)}")
-    print(f"  spec is ~{spec//4} tokens — a pack is {spec//mean}x smaller")
-    if carried:
-        print(f"  {carried} pack(s) carry what a previous attempt hit")
+    config = dict(cfg, _phase=phase)
+    return {t['id'] + '.md': render(t, reqs, config, constitution, cfg.get('glossary', {}),
+            defaults or {}, by_id, prior_attempts(cfg, phase, t['id'])) for t in tickets}
 
 
+def main(cfg, phase):
+    import tempfile, shutil
+    from pathlib import Path
+    bodies = build(cfg, phase)  # Validate and render everything before replacing any brief.
+    destination = Path(out(cfg, f'context-packs/phase-{phase}'))
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=destination.parent) as tmp:
+        for name, body in bodies.items(): Path(tmp, name).write_text(body)
+        if destination.exists(): shutil.rmtree(destination)
+        shutil.copytree(tmp, destination)
+    sizes = [len(body) for body in bodies.values()]
+    print(f'{len(sizes)} context packs -> {destination}; max {max(sizes)} characters')
+    spec_size = os.path.getsize(cfg['spec']['path'])
+    if max(sizes) > spec_size / 10:
+        print('  note: 10x reduction is not met; fixed instructions dominate small specifications')
+    return 0

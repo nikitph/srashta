@@ -32,9 +32,11 @@ def _cfg(path='project.yaml', required=True, enforce_pin=True):
             f"  the validator IS the conformance definition, so a silent version change\n"
             f"  would silently change what 'valid' means.\n"
             f"  run `srashta upgrade` to migrate deliberately, or install {pin}.")
+    if enforce_pin and cfg.get('artifact_version') != 2:
+        raise SystemExit('run srashta upgrade to migrate this project to artifact_version 2')
     return cfg
 
-def main(argv=None):
+def _main(argv=None):
     # piping into head/less is normal CLI use; do not traceback on it
     try:
         import signal
@@ -54,6 +56,20 @@ def main(argv=None):
     a.add_argument('--stack', default='laravel-react', choices=['laravel-react', 'none'])
     a.add_argument('--run-scaffold', action='store_true')
 
+    add('defaults', 'compile guarded Laravel runtime defaults from YAML')
+    add('bootstrap', 'enable repository hooks after cloning')
+    a = add('approve', 'record human approval bound to the current contract design')
+    a.add_argument('phase', type=int); a.add_argument('--by', required=True)
+    a = add('worker', 'export a single-worker input without planning files or Git history')
+    a.add_argument('phase', type=int); a.add_argument('ticket'); a.add_argument('--dest', required=True)
+    a = add('verify', 'verify ticket diff, traceability and configured test commands')
+    a.add_argument('phase', type=int); a.add_argument('ticket'); a.add_argument('--base', required=True)
+    a = add('close', 'verify and close a phase with evidence and a retrospective')
+    a.add_argument('phase', type=int); a.add_argument('--by', required=True)
+    a = add('api', 'generate, check or freeze the OpenAPI contract')
+    a.add_argument('action', choices=['generate', 'check', 'freeze'])
+    a.add_argument('--base'); a.add_argument('--by')
+
     add('status',   'where is this project, and whose turn is it')
 
     a = add('run',      'the whole chain, degrading rather than blocking')
@@ -72,7 +88,7 @@ def main(argv=None):
     a.add_argument('--format', default='generic', choices=['generic', 'markdown-kanban'])
 
     a = add('eligible', 'which tickets may be claimed right now')
-    a.add_argument('phase'); a.add_argument('--state', default='state.json')
+    a.add_argument('phase'); a.add_argument('--state', default=None)
     a.add_argument('--json', action='store_true')
 
     a = add('gentests', 'generate transition tests from a table')
@@ -84,6 +100,7 @@ def main(argv=None):
     a.add_argument('ticket', nargs='?'); a.add_argument('kind', nargs='?')
     a.add_argument('--phase', default='0'); a.add_argument('--data', default=None)
     a.add_argument('--agent', default=None)
+    a.add_argument('--id', default=None, help='idempotency key for retrying the same event')
     a.add_argument('--summary', action='store_true'); a.add_argument('--list-kinds', action='store_true')
 
     a = add('trace',    'why does this exist / what breaks if it changes')
@@ -111,6 +128,22 @@ def main(argv=None):
         return import_module('.status', package='srashta').main_cli()
 
     cfg = _cfg(enforce_pin=args.cmd not in ('upgrade', 'status'))
+    if args.cmd == 'defaults':
+        return import_module('.defaults', package='srashta').generate(cfg)
+    if args.cmd == 'bootstrap':
+        return import_module('.init', package='srashta').bootstrap()
+    if args.cmd == 'approve':
+        import_module('.approvals', package='srashta').approve(cfg, args.phase, args.by)
+        return 0
+    if args.cmd == 'worker':
+        return import_module('.worker', package='srashta').run(cfg, args.phase, args.ticket, args.dest)
+    if args.cmd == 'verify':
+        return import_module('.execution', package='srashta').verify(cfg, args.phase, args.ticket, args.base)
+    if args.cmd == 'close':
+        return import_module('.phase', package='srashta').close(cfg, args.phase, args.by)
+    if args.cmd == 'api':
+        if args.action == 'freeze' and not args.by: p.error('api freeze requires --by')
+        return import_module('.api', package='srashta').run(cfg, args.action, args.base, args.by)
     if args.cmd == 'run':
         return import_module('.run', package='srashta').run(cfg, args.phase, args.verbose)
     if args.cmd in ('extract', 'lint', 'dsm', 'assign'):
@@ -143,6 +176,11 @@ def main(argv=None):
     if args.cmd == 'upgrade':
         import yaml
         c = yaml.safe_load(open('project.yaml')); old = c.get('srashta_version')
+        from .tickets import migrate
+        migrate(c)
+        from .skills import entrypoints
+        entrypoints()
+        c['artifact_version'] = 2
         c['srashta_version'] = __version__
         yaml.safe_dump(c, open('project.yaml', 'w'), sort_keys=False, width=100)
         print(f"  pinned {old} -> {__version__}")
@@ -151,3 +189,12 @@ def main(argv=None):
         print(f"  want to see that now rather than mid-execution.")
         return 0
     return 0
+
+
+def main(argv=None):
+    import subprocess
+    try:
+        return _main(argv)
+    except (ValueError, OSError, KeyError, TypeError, subprocess.CalledProcessError) as exc:
+        print(f'ERROR: {exc}', file=sys.stderr)
+        return 1

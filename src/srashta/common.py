@@ -1,5 +1,5 @@
 """Shared helpers. No project-specific knowledge lives here or anywhere in pipeline/."""
-import json, os, re, sys, yaml
+import json, os, re, sys, tempfile, yaml
 
 def load_project(path='project.yaml'):
     cfg = yaml.safe_load(open(path))
@@ -24,7 +24,16 @@ def out(cfg, *parts):
 def read_json(p):  return json.load(open(p))
 def write_json(p, o):
     os.makedirs(os.path.dirname(p) or '.', exist_ok=True)
-    json.dump(o, open(p, 'w'), indent=1)
+    fd, temporary = tempfile.mkstemp(prefix='.srashta-', dir=os.path.dirname(p) or '.')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            json.dump(o, stream, indent=1, ensure_ascii=False)
+            stream.write('\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, p)
+    finally:
+        if os.path.exists(temporary): os.unlink(temporary)
 
 def die(msg):
     # sys.exit(str) prints to stderr AND carries the message, so callers and tests
