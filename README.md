@@ -64,14 +64,14 @@ source .venv/bin/activate
 python -m pip install -e .
 
 # Create a planning workspace; no PHP needed for this step.
-srashta init ../my-api --stack none
+srashta init my-api --dest ../my-api --stack none
 cd ../my-api
 srashta status
 ```
 
 Edit `project.yaml`, write the specification, and follow the generated `PROCEDURE.md`. Project guides are exposed through `.agents/skills/` and `.claude/skills/`.
 
-For a Laravel application, use `srashta init ../my-api --run-scaffold` instead. Scaffolding additionally needs PHP 8.3+ and Composer. The destination must be new or empty.
+For a Laravel application, use `srashta init my-api --dest ../my-api --run-scaffold` instead. Scaffolding additionally needs PHP 8.3+ and Composer. The destination must be new or empty.
 
 ## From a plan to a handoff
 
