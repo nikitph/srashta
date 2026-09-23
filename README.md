@@ -135,6 +135,7 @@ Version 0.1 ends at backend/API freeze. A hosted scheduler, OS sandboxing, front
 | --- | --- |
 | [Interactive walkthrough](https://nikitph.github.io/srashta/) | An illustrative graph and the brief behind each ticket |
 | [Operating guide](GUIDE.md) | Commands, source-of-truth rules, execution and migration |
+| [Structural specification process](docs/design/structural-process/README.md) | Proposed behavioral contracts, Revision 2 review and Aarogya planning example; not yet implemented |
 | [Decomposition guide](src/srashta/templates/skills/phase-decomposition.md) | The planning process supplied to your agent |
 | [Ticket schema](src/srashta/templates/schemas/ticket.schema.json) | The structured handoff contract |
 | [Changelog](CHANGELOG.md) | Release changes |

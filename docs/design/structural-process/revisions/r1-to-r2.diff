@@ -1,0 +1,101 @@
+--- revisions/PROCESS-r1.md
++++ PROCESS.md (revision 2)
+@@ -3 +3 @@
+-Date: 23 September 2026. Status: process addendum, with a worked planning review. These rules are not yet implemented in the Python compiler. No application behavior, domain approval or exhaustive specification coverage is certified here.
++Date: 23 September 2026. Revision 2. Status: process addendum, with a worked planning review. Revision 2 adds review amendments A1–A6 (listed at the end). These rules are not yet implemented in the Python compiler. No application behavior, domain approval or exhaustive specification coverage is certified here.
+@@ -5 +5 @@
+-Source: [user-supplied structural rules](../references/structural-rules.md). Rule identifiers below refer to that document. [Aarogya application](../AAROGYA.md) shows the practical change to our existing trial.
++Source: [user-supplied structural rules](references/structural-rules.md). Rule identifiers below refer to that document. [Aarogya application](AAROGYA.md) shows the practical change to our existing trial.
+@@ -21 +21 @@
+-3. **Expand its behavioral obligations.** Record invariants, states, transitions, authority, time, races, policy snapshots and boundary failures. Instantiate only applicable register types. Every omission needs an applicability reason; a blank field is not a decision.
++3. **Expand its behavioral obligations.** Record invariants, states, transitions, authority, time, races, policy snapshots and boundary failures. Instantiate only applicable register types. Every omission needs an applicability reason; a blank field is not a decision. For P0 records, an omission is valid only under the origin rule in A1.
+@@ -45,0 +46,12 @@
++### Decision records (A4)
++
++Decision records are versioned, not overwritten:
++
++`decision_id, question, answer, owner, origin, effective_from, supersedes, superseded_by, affected_records, blocking_stage, rationale`
++
++A superseded decision is treated as a semantic change to every record in `affected_records`: those records, their bound tickets and their acceptance cases return to review under V6. A record whose decision reference points at a superseded decision cannot hold `semantics_reviewed`.
++
++### Inherited evidence invalidation (A3)
++
++Inherited evidence records the foundation revision, configuration and usage assumptions it was verified under. When the pinned foundation revision changes, every record whose evidence was inherited from a changed capability drops from `behavior_verified` to `semantics_reviewed` until its evidence is re-established at the new revision. Unchanged capabilities keep their evidence. The foundation profile must therefore state, per capability, which revision last changed it.
++
+@@ -57 +69 @@
+-| R11–R15 | Require bounded recovery for states with a promised progression. A stable active account or indefinitely editable draft need not expire. Record overdue grace, scheduler cadence and escalation. Zero overdue rows is a drained-fixture assertion, not an unconditional production guarantee. Enforce hard expiry at the action/read boundary where required. |
++| R11–R15 | Require bounded recovery for states with a promised progression. A stable active account or indefinitely editable draft need not expire. Every non-terminal state carries an explicit `progression` classification (`promised` or `none`); for P0 states, `none` requires an approved decision (A1). Record overdue grace, scheduler cadence and escalation. Zero overdue rows is a drained-fixture assertion, not an unconditional production guarantee. Enforce hard expiry at the action/read boundary where required. |
+@@ -61,2 +73,2 @@
+-| R20–R21 | Adopt authentication, deduplication, ordering, late/lost-event and reconciliation obligations. Include humans as dependencies where their absence can stall promised progress; not every role requires a provider-style callback contract. |
+-| R22 | Propagate required priority to the necessary capability slice, not its entire module or optional neighboring features. |
++| R20–R21 | Adopt authentication, deduplication, ordering, late/lost-event and reconciliation obligations. Include humans as dependencies where their absence can stall promised progress; not every role requires a provider-style callback contract. Close each provider's declared event vocabulary against the provider's published event catalogue at a pinned catalogue version (A2). |
++| R22 | Propagate required priority to the necessary capability slice, not its entire module or optional neighboring features. The slice is defined mechanically as the closure of operation records, contracts, timers and boundary records reachable from the prioritised record through typed references (A5). |
+@@ -66 +78 @@
+-| R27–R30 | Adopt authority scope, recorded overrides and race outcomes. Define eligible overrides; structural/security invariants are not implicitly waivable. State the allowed concurrent outcomes, which may include multiple successes or an idempotent replay. |
++| R27–R30 | Adopt authority scope, recorded overrides and race outcomes. Define eligible overrides; structural/security invariants are not implicitly waivable. State the allowed concurrent outcomes, which may include multiple successes or an idempotent replay. A P0 operation classified as non-exclusive (no race obligation) requires an approved decision (A1). |
+@@ -71,0 +84,12 @@
++
++### Applicability and the origin rule (A1)
++
++Applicability reasons are necessary, and they are also the easiest way for a planner under pressure to reach a clean plan by classifying hard cases away. The following classifications therefore require origin `approved decision` when the affected record is P0, and may not rest on `proposed interpretation`:
++
++- a register type or register row marked `not_applicable`;
++- a non-terminal state classified `progression: none`;
++- an operation classified as non-exclusive, removing its race obligation;
++- a provider event marked `ignored`;
++- an invariant classified as waivable by override.
++
++A planner or worker may propose any of these. It may not grant them to itself. Until approved, the classification is an open decision that blocks `implementation-ready` for the affected dependency closure. For non-P0 records, `proposed interpretation` is permitted but is reported in the readiness review.
+@@ -82 +106 @@
+-| V6 | Review affected tests on semantic changes. Test corrections or harness refactoring can preserve the contract; record their rationale rather than inventing a requirement change. |
++| V6 | Review affected tests on semantic changes, including superseded decisions (A4) and foundation revisions affecting inherited evidence (A3). Test corrections or harness refactoring can preserve the contract; record their rationale rather than inventing a requirement change. |
+@@ -95,0 +120,12 @@
++
++### Inventory closure checks (A2)
++
++Inventory completeness cannot be proved in general, but parts of it can be closed against sets the compiler can see. These are mechanical checks:
++
++- **Provider catalogue closure.** For each external boundary, the declared event vocabulary equals the provider's published event catalogue at a pinned catalogue version. Every catalogue event appears in at least one state machine's coverage matrix or carries an `ignored` classification subject to A1.
++- **Coupled-machine closure.** For every declared coupling, every state of the driving machine appears in the mapping table.
++- **Example closure.** Every entity, state, event and parameter named in an approved worked example exists in the inventory.
++- **Decision closure.** Every record referenced by a decision's `affected_records` exists, and every decision reference on a record resolves to a non-superseded decision or is flagged.
++- **Classification closure.** Every non-terminal state has a `progression` classification; every operation has an exclusivity classification; every P0 classification that removes an obligation satisfies A1.
++
++These reduce, but do not replace, semantic review.
+@@ -116 +152 @@
+-First extend one existing use case's authored inputs with the records above, bind its records to the existing tickets and emit the richer briefs and acceptance plan. Then implement structural checks with negative fixtures for a missing owner, uncovered late event, absent deadline mechanism, unbound real provider, and unpropagated decision. Run the old and new planners on the same scope and foundation assumptions.
++First extend one existing use case's authored inputs with the records above, bind its records to the existing tickets and emit the richer briefs and acceptance plan. Then implement structural checks with negative fixtures for:
+@@ -118 +154,32 @@
+-Compare unresolved worker choices, missing/redundant prerequisites, criterion coverage, repair effort and whether an implementer had to invent behavior. Ticket count and fewer edges alone are not quality measures. Preserve the original trial as the comparison baseline.
++- a missing owner;
++- an uncovered late event;
++- an absent deadline mechanism;
++- an unbound real provider;
++- an unpropagated decision;
++- a P0 `not_applicable` or `progression: none` classification with origin `proposed interpretation` (A1);
++- a provider catalogue event absent from every coverage matrix (A2);
++- inherited evidence still marked verified after its capability changed in a foundation revision bump (A3);
++- a record referencing a superseded decision while marked `semantics_reviewed` (A4).
++
++Run the old and new planners on the same scope and foundation assumptions.
++
++### Measuring invented behavior (A6)
++
++"Whether an implementer had to invent behavior" must be counted, not judged after the fact. Require every implementer to emit an `invented_decision` record for each choice the brief, contracts and acceptance plan did not determine:
++
++`invented_decision_id, ticket_id, question, choice_made, alternatives_considered, affected_behavior, severity (cosmetic / behavioral / contractual), suggested_record`
++
++Compare, between the old and new planner runs: the count of invented decisions, their severity distribution, and how many correspond to a missing or `open` record in the model. Each behavioral or contractual invented decision is a finding against the model, and its `suggested_record` is the candidate fix.
++
++Also compare unresolved worker choices, missing/redundant prerequisites, criterion coverage and repair effort. Ticket count and fewer edges alone are not quality measures. Preserve the original trial as the comparison baseline.
++
++## Revision 2 amendments
++
++| ID | Amendment | Sections affected |
++|---|---|---|
++| A1 | Obligation-removing classifications on P0 records require an approved decision; planners may propose but not grant them. | Workflow step 3; R11–R15; R27–R30; Applicability and the origin rule |
++| A2 | Mechanical inventory closure against provider catalogues, coupled machines, worked examples, decisions and classifications. | R20–R21; Inventory closure checks |
++| A3 | Foundation revision changes invalidate inherited evidence for changed capabilities. | Inherited evidence invalidation; V6 |
++| A4 | Decision records are versioned with supersession, and supersession propagates review. | Decision records; V6 |
++| A5 | Priority slice defined as the typed-reference closure from the prioritised record. | R22 |
++| A6 | Invented behavior measured through `invented_decision` records emitted by implementers. | Measuring invented behavior |

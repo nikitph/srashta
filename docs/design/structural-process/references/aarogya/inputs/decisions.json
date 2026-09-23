@@ -1,0 +1,101 @@
+[
+  {
+    "id": "G-STACK",
+    "category": "configuration",
+    "question": "Confirm the proposed package/runtime profile and resolve a compatible lockfile. The archived constitution says Laravel 12; the pinned starter declares Laravel 13.17+ and PHPUnit, not Pest.",
+    "impact": "implementation",
+    "targets": [
+      "T-01"
+    ],
+    "status": "open"
+  },
+  {
+    "id": "G-COMMIT",
+    "category": "product/architecture",
+    "question": "Accept or revise the proposed atomic completion boundary: number, bill, deposits, receivables, ledger, audit and outbox commit together. Doctor accrual and remote delivery are durable asynchronous reactions.",
+    "impact": "implementation",
+    "targets": [
+      "C-03",
+      "C-04"
+    ],
+    "status": "open"
+  },
+  {
+    "id": "G-LATE",
+    "category": "product",
+    "question": "Can further charges arrive after finalization? Choose one-final-per-encounter versus supplemental bills, and the close/reopen policy. Proposed: check and lock a charge-set revision; reject a stale request without consuming a number.",
+    "impact": "implementation",
+    "targets": [
+      "T-10",
+      "T-14"
+    ],
+    "status": "open"
+  },
+  {
+    "id": "G-MONEY",
+    "category": "product",
+    "question": "Specify sub-paise tax tie handling, payer allocation of the document rounding adjustment, and tax/discount/package ordering. Integer paise alone does not settle these.",
+    "impact": "implementation",
+    "targets": [
+      "T-11",
+      "T-12",
+      "T-23",
+      "T-24"
+    ],
+    "status": "open"
+  },
+  {
+    "id": "G-TAX",
+    "category": "source question",
+    "question": "Source OQ-03 leaves in-patient pharmacy exemption unsettled. Preserve a versioned policy parameter; applicable policy needs review before these outcomes are accepted.",
+    "impact": "verification",
+    "targets": [
+      "I-01",
+      "I-02"
+    ],
+    "status": "open"
+  },
+  {
+    "id": "G-DOCUMENT",
+    "category": "product",
+    "question": "When IRP is required, may a patient document be released before the IRN? How is a later IRN attached while amounts remain immutable? What backs dynamic QR generation?",
+    "impact": "implementation",
+    "targets": [
+      "T-15",
+      "T-20",
+      "T-21"
+    ],
+    "status": "open"
+  },
+  {
+    "id": "G-DELIVERY",
+    "category": "integration",
+    "question": "Select provider bindings and demonstrate dedupe/reconciliation for ambiguous SMS, WhatsApp, email and OTP outcomes. Source promises no duplicate messages; local queue retries alone cannot prove that.",
+    "impact": "verification",
+    "targets": [
+      "I-02"
+    ],
+    "status": "open"
+  },
+  {
+    "id": "G-UPSTREAM",
+    "category": "integration",
+    "question": "Bind real encounter, patient/contact, charge, payer/discount, deposit, doctor-rule and facility-config stores. Seeds/fakes prove adapters only; original archive is planning data, not a working hospital app.",
+    "impact": "verification",
+    "targets": [
+      "I-01",
+      "I-02"
+    ],
+    "status": "open"
+  },
+  {
+    "id": "G-LOAD",
+    "category": "acceptance",
+    "question": "Define reference load, database/hardware, concurrent tenants/requests and test duration for the 2,000-line p95 <= 5 seconds target.",
+    "impact": "verification",
+    "targets": [
+      "I-03"
+    ],
+    "status": "open"
+  }
+]
